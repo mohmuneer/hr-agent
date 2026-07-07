@@ -2,6 +2,7 @@ fastapi>=0.110
 uvicorn[standard]>=0.29
 anthropic>=0.39
 google-genai>=0.9
+openai>=1.0
 pydantic>=2.6
 pytest>=8.0
 python-dotenv>=1.0

@@ -57,6 +57,11 @@ class Settings:
         o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()
     ]
 
+    # OpenAI — دعم مباشر لنماذج OpenAI ومنصات متوافقة
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
+    OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+
     # SMTP — إشعارات البريد الإلكتروني للمرشحين (اختياري — إذا تركت فارغة، لن ترسل الإيميلات)
     SMTP_HOST: str = os.getenv("SMTP_HOST", "")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
@@ -68,6 +73,8 @@ class Settings:
     def is_configured(self) -> bool:
         if self.PROVIDER == "gemini":
             return bool(self.GEMINI_API_KEY)
+        if self.PROVIDER == "openai":
+            return bool(self.OPENAI_API_KEY)
         return bool(self.ANTHROPIC_API_KEY)
 
 
