@@ -8,7 +8,7 @@ from __future__ import annotations
 import anthropic
 from anthropic import Anthropic
 from google import genai
-from google.genai import errors as genai_errors
+from google.genai import errors as genai_errors, types as genai_types
 
 from app.core.config import get_settings
 
@@ -46,6 +46,9 @@ def _call_gemini(settings, prompt: str, max_tokens: int) -> str:
         response = client.models.generate_content(
             model=settings.GEMINI_MODEL,
             contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                max_output_tokens=max_tokens,
+            ),
         )
     except genai_errors.APIError as e:
         raise LLMError(f"تعذّر الاتصال بنموذج الذكاء الاصطناعي (Gemini): {e.message}")
