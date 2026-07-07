@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>المقابلة الصوتية</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --surface: #ffffff;
+    --border: #e5e5e8;
+    --text: #1c1c1f;
+    --text-muted: #6b6b73;
+    --primary: #2f6f4f;
+    --primary-dark: #1f5138;
+    --danger: #b3432b;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17181a;
+      --surface: #212226;
+      --border: #33343a;
+      --text: #ececef;
+      --text-muted: #9a9aa2;
+      --primary: #4caf7d;
+      --primary-dark: #3a8b62;
+      --danger: #e0715a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header { padding: 28px 24px 16px; text-align: center; }
+  header h1 { margin: 0 0 6px; font-size: 1.4rem; }
+  header p { margin: 0; color: var(--text-muted); font-size: 0.92rem; }
+
+  main { max-width: 620px; margin: 0 auto; padding: 8px 16px 64px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 26px;
+    text-align: center;
+  }
+  .hidden { display: none; }
+
+  button {
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  button:hover { background: var(--primary-dark); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.danger { background: var(--danger); }
+  button.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+
+  .progress { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px; }
+  .progress-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 22px; }
+  .progress-fill { height: 100%; background: var(--primary); transition: width 0.3s; }
+
+  .question-box {
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 20px;
+    font-size: 1.1rem;
+    line-height: 1.7;
+    margin-bottom: 20px;
+    text-align: right;
+  }
+
+  .mic-btn {
+    width: 84px; height: 84px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.8rem; margin: 12px auto; padding: 0;
+    background: var(--primary);
+  }
+  .mic-btn.recording { background: var(--danger); animation: pulse 1.4s infinite; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(179,67,43,0.4); }
+    70% { box-shadow: 0 0 0 16px rgba(179,67,43,0); }
+    100% { box-shadow: 0 0 0 0 rgba(179,67,43,0); }
+  }
+  .mic-hint { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 4px; }
+
+  textarea#answer-text {
+    width: 100%; min-height: 90px; margin-top: 16px; text-align: right;
+    padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); font-family: inherit; font-size: 0.95rem;
+  }
+
+  .actions-row { display: flex; gap: 10px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+
+  #status-msg { margin-top: 16px; font-size: 0.88rem; color: var(--text-muted); }
+  #status-msg.error { color: var(--danger); }
+
+  .success-icon { font-size: 2.5rem; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>المقابلة الصوتية</h1>
+  <p>وكيل HR سيسألك بضعة أسئلة صوتيًا — أجب بصوتك بشكل طبيعي</p>
+</header>
+
+<main>
+  <section class="card" id="loading-card">
+    <p>جارٍ التحقق من بيانات المقابلة...</p>
+  </section>
+
+  <section class="card hidden" id="error-card">
+    <div class="success-icon">⚠️</div>
+    <p id="error-message"></p>
+  </section>
+
+  <section class="card hidden" id="start-card">
+    <h2 id="start-title"></h2>
+    <p class="hint" style="color:var(--text-muted);">
+      عدد الأسئلة: <span id="question-count"></span>. تأكد من وجود مايكروفون متصل، وأن متصفحك يدعم التعرف على الصوت (Chrome أو Edge).
+      ستُقرأ الأسئلة عليك بصوت الجهاز، وتُجيب أنت بصوتك — يمكنك مراجعة النص المكتوب وتعديله قبل الإرسال.
+    </p>
+    <button type="button" id="start-btn">ابدأ المقابلة</button>
+  </section>
+
+  <section class="card hidden" id="interview-card">
+    <div class="progress" id="progress-label"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+
+    <div class="question-box" id="question-box"></div>
+
+    <button type="button" id="replay-btn" class="secondary">🔊 إعادة قراءة السؤال</button>
+
+    <div>
+      <button type="button" id="mic-btn" class="mic-btn">🎤</button>
+      <div class="mic-hint" id="mic-hint">اضغط للبدء بالإجابة</div>
+    </div>
+
+    <textarea id="answer-text" placeholder="سيظهر نص إجابتك هنا أثناء الحديث — يمكنك تعديله يدويًا قبل الإرسال."></textarea>
+
+    <div class="actions-row">
+      <button type="button" id="next-btn" disabled>التالي ➜</button>
+    </div>
+
+    <div id="status-msg"></div>
+  </section>
+
+  <section class="card hidden" id="finish-card">
+    <p>انتهيت من كل الأسئلة. اضغط الزر أدناه لإنهاء المقابلة وإرسالها لفريق التوظيف.</p>
+    <button type="button" id="finish-btn">إنهاء المقابلة وإرسالها</button>
+    <div id="finish-status"></div>
+  </section>
+
+  <section class="card hidden" id="done-card">
+    <div class="success-icon">✅</div>
+    <h2>شكرًا لك على وقتك</h2>
+    <p style="color:var(--text-muted);">تم إرسال إجاباتك بنجاح. سيقوم فريق التوظيف بمراجعتها والتواصل معك عند وجود تحديث.</p>
+  </section>
+</main>
+
+<script>
+const API_BASE = "/api/v1";
+const params = new URLSearchParams(location.search);
+const appId = params.get("id");
+const email = params.get("email");
+
+const el = (id) => document.getElementById(id);
+function show(id) {
+  ["loading-card","error-card","start-card","interview-card","finish-card","done-card"]
+    .forEach(x => el(x).classList.toggle("hidden", x !== id));
+}
+
+let questions = [];
+let currentIndex = 0;
+let recognition = null;
+let isRecording = false;
+
+function showError(message) {
+  el("error-message").textContent = message;
+  show("error-card");
+}
+
+async function init() {
+  if (!appId || !email) {
+    showError("رابط غير صالح. تأكد من استخدام نفس الرابط الذي حصلت عليه بعد التقديم.");
+    return;
+  }
+  try {
+    const res = await fetch(`${API_BASE}/applications/${appId}/interview/questions?email=${encodeURIComponent(email)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "تعذّر تحميل بيانات المقابلة.");
+
+    questions = data.questions;
+    el("start-title").textContent = `مرحبًا ${data.full_name} — مقابلة ${data.job_title}`;
+    el("question-count").textContent = questions.length;
+    show("start-card");
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+function setupRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return null;
+
+  const r = new SpeechRecognition();
+  r.lang = "ar-SA";
+  r.continuous = true;
+  r.interimResults = true;
+
+  r.onresult = (event) => {
+    let finalText = el("answer-text").dataset.finalized || "";
+    let interim = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        finalText += transcript + " ";
+      } else {
+        interim += transcript;
+      }
+    }
+    el("answer-text").dataset.finalized = finalText;
+    el("answer-text").value = (finalText + interim).trim();
+  };
+
+  r.onerror = (event) => {
+    const statusEl = el("status-msg");
+    statusEl.className = "error";
+    if (event.error === "not-allowed" || event.error === "permission-denied") {
+      statusEl.textContent = "تم رفض إذن الوصول للمايكروفون. فعّله من إعدادات المتصفح وحاول مجددًا.";
+    } else {
+      statusEl.textContent = "خطأ في التعرف على الصوت: " + event.error;
+    }
+    stopRecording();
+  };
+
+  r.onend = () => {
+    if (isRecording) {
+      // بعض المتصفحات توقف التعرف تلقائيًا بعد صمت — أعد التشغيل ما دام المستخدم لم يضغط إيقاف
+      try { r.start(); } catch (e) { /* تجاهل تكرار start */ }
+    }
+  };
+
+  return r;
+}
+
+function startRecording() {
+  if (!recognition) {
+    el("status-msg").className = "error";
+    el("status-msg").textContent = "متصفحك لا يدعم التعرف على الصوت. جرّب Chrome أو Edge على سطح المكتب.";
+    return;
+  }
+  el("answer-text").dataset.finalized = el("answer-text").value ? el("answer-text").value + " " : "";
+  isRecording = true;
+  el("mic-btn").classList.add("recording");
+  el("mic-hint").textContent = "🔴 يستمع الآن... اضغط لإيقاف التسجيل";
+  el("status-msg").className = "";
+  el("status-msg").textContent = "";
+  try { recognition.start(); } catch (e) { /* قد يكون بدأ مسبقًا */ }
+}
+
+function stopRecording() {
+  isRecording = false;
+  if (recognition) {
+    try { recognition.stop(); } catch (e) {}
+  }
+  el("mic-btn").classList.remove("recording");
+  el("mic-hint").textContent = "اضغط لإعادة التسجيل، أو عدّل النص يدويًا";
+  el("next-btn").disabled = el("answer-text").value.trim().length === 0;
+}
+
+el("mic-btn").addEventListener("click", () => {
+  if (isRecording) stopRecording();
+  else startRecording();
+});
+
+el("answer-text").addEventListener("input", () => {
+  el("next-btn").disabled = el("answer-text").value.trim().length === 0;
+});
+
+function speak(text, onEnd) {
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = "ar-SA";
+  utter.rate = 0.95;
+  if (onEnd) utter.onend = onEnd;
+  else utter.onend = null;
+  window.speechSynthesis.speak(utter);
+}
+
+function loadQuestion() {
+  const q = questions[currentIndex];
+  el("progress-label").textContent = `سؤال ${currentIndex + 1} من ${questions.length}`;
+  el("progress-fill").style.width = `${((currentIndex) / questions.length) * 100}%`;
+  el("question-box").textContent = q;
+  el("answer-text").value = "";
+  el("answer-text").dataset.finalized = "";
+  el("next-btn").disabled = true;
+  el("status-msg").textContent = "";
+  el("status-msg").className = "";
+  if (isRecording) stopRecording();
+  speak(q);
+}
+
+el("replay-btn").addEventListener("click", () => speak(questions[currentIndex]));
+
+el("start-btn").addEventListener("click", () => {
+  recognition = setupRecognition();
+  show("interview-card");
+  currentIndex = 0;
+  loadQuestion();
+});
+
+el("next-btn").addEventListener("click", async () => {
+  const answer = el("answer-text").value.trim();
+  if (!answer) return;
+
+  const btn = el("next-btn");
+  btn.disabled = true;
+  el("status-msg").className = "";
+  el("status-msg").textContent = "جارٍ الحفظ...";
+
+  try {
+    const res = await fetch(`${API_BASE}/applications/${appId}/interview/turn`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        question_index: currentIndex,
+        question_text: questions[currentIndex],
+        answer_text: answer,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "تعذّر حفظ الإجابة.");
+
+    currentIndex++;
+    if (currentIndex >= questions.length) {
+      el("progress-fill").style.width = "100%";
+      window.speechSynthesis.cancel();
+      if (recognition) { try { recognition.stop(); } catch (e) {} }
+      show("finish-card");
+    } else {
+      el("status-msg").textContent = "";
+      loadQuestion();
+    }
+  } catch (err) {
+    el("status-msg").className = "error";
+    el("status-msg").textContent = "خطأ: " + err.message;
+    btn.disabled = false;
+  }
+});
+
+el("finish-btn").addEventListener("click", async () => {
+  const btn = el("finish-btn");
+  btn.disabled = true;
+  const statusEl = el("finish-status");
+  statusEl.className = "hint";
+  statusEl.textContent = "جارٍ إنهاء المقابلة...";
+
+  try {
+    const res = await fetch(`${API_BASE}/applications/${appId}/interview/evaluate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "تعذّر إنهاء المقابلة.");
+    show("done-card");
+  } catch (err) {
+    statusEl.className = "error";
+    statusEl.textContent = "خطأ: " + err.message;
+    btn.disabled = false;
+  }
+});
+
+init();
+</script>
+</body>
+</html>

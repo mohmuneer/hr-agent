@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تسجيل الدخول — HR Agent</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --surface: #ffffff;
+    --border: #e5e5e8;
+    --text: #1c1c1f;
+    --text-muted: #6b6b73;
+    --primary: #2f6f4f;
+    --primary-dark: #1f5138;
+    --danger: #b3432b;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17181a;
+      --surface: #212226;
+      --border: #33343a;
+      --text: #ececef;
+      --text-muted: #9a9aa2;
+      --primary: #4caf7d;
+      --primary-dark: #3a8b62;
+      --danger: #e0715a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+    max-width: 380px;
+    width: 100%;
+  }
+  header { text-align: center; margin-bottom: 24px; }
+  header h1 { margin: 0 0 6px; font-size: 1.3rem; }
+  header p { margin: 0; color: var(--text-muted); font-size: 0.88rem; }
+
+  .field { margin-bottom: 16px; }
+  label { display: block; font-size: 0.9rem; margin-bottom: 6px; color: var(--text-muted); }
+  input {
+    width: 100%; padding: 10px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    font-family: inherit; font-size: 0.95rem;
+  }
+  button {
+    width: 100%; background: var(--primary); color: #fff; border: none;
+    padding: 11px 22px; border-radius: 8px; font-size: 0.95rem; cursor: pointer; font-weight: 600;
+  }
+  button:hover { background: var(--primary-dark); }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  #status { margin-top: 14px; font-size: 0.88rem; color: var(--danger); text-align: center; min-height: 1.2em; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <header>
+    <h1>HR Agent</h1>
+    <p>تسجيل الدخول إلى لوحة الموارد البشرية الداخلية</p>
+  </header>
+
+  <form id="login-form">
+    <div class="field">
+      <label for="username">اسم المستخدم</label>
+      <input type="text" id="username" required autofocus>
+    </div>
+    <div class="field">
+      <label for="password">كلمة المرور</label>
+      <input type="password" id="password" required>
+    </div>
+    <button type="submit" id="login-btn">تسجيل الدخول</button>
+    <div id="status"></div>
+  </form>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const redirectTo = params.get("redirect") || "/app/";
+
+document.getElementById("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("login-btn");
+  const status = document.getElementById("status");
+  btn.disabled = true;
+  status.textContent = "";
+
+  try {
+    const res = await fetch("/api/v1/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: document.getElementById("username").value.trim(),
+        password: document.getElementById("password").value,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "تعذّر تسجيل الدخول.");
+    if (data.must_change_password) {
+      location.href = "/app/?force_change_password=1";
+    } else {
+      location.href = redirectTo;
+    }
+  } catch (err) {
+    status.textContent = err.message;
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

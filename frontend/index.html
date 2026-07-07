@@ -1,0 +1,2339 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HR Agent — تحليل السير الذاتية</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --surface: #ffffff;
+    --border: #e5e5e8;
+    --text: #1c1c1f;
+    --text-muted: #6b6b73;
+    --primary: #2f6f4f;
+    --primary-dark: #1f5138;
+    --danger: #b3432b;
+    --warn: #b58900;
+    --good: #2f6f4f;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17181a;
+      --surface: #212226;
+      --border: #33343a;
+      --text: #ececef;
+      --text-muted: #9a9aa2;
+      --primary: #4caf7d;
+      --primary-dark: #3a8b62;
+      --danger: #e0715a;
+      --warn: #d9a53c;
+      --good: #4caf7d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .shell { display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: 240px; flex-shrink: 0;
+    background: var(--surface);
+    border-inline-start: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    padding: 18px 0;
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  .sidebar-brand { font-size: 1.1rem; font-weight: 700; padding: 4px 20px 16px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+  .sidebar-nav { display: flex; flex-direction: column; gap: 2px; padding: 0 10px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    background: none; color: var(--text-muted); border: none;
+    padding: 11px 12px; border-radius: 8px; text-align: right;
+    font-size: 0.92rem; font-weight: 500; cursor: pointer; width: 100%;
+  }
+  .nav-item:hover { background: var(--bg); color: var(--text); }
+  .nav-item.active { background: var(--primary); color: #fff; }
+  .sidebar-footer { margin-top: auto; padding: 14px 20px 0; border-top: 1px solid var(--border); }
+  .sidebar-footer a { font-size: 0.82rem; color: var(--primary); text-decoration: none; }
+  .sidebar-footer a:hover { text-decoration: underline; }
+
+  .sidebar-backdrop { display: none; }
+
+  .main-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .topbar {
+    display: flex; align-items: center; gap: 14px; padding: 16px 24px;
+    border-bottom: 1px solid var(--border); background: var(--surface);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .topbar h1 { font-size: 1.1rem; margin: 0; flex: 1; }
+  .icon-btn { display: none; background: none; border: none; color: var(--text); font-size: 1.3rem; padding: 4px 8px; cursor: pointer; }
+
+  .content {
+    flex: 1; padding: 24px 16px 64px;
+    max-width: 960px; width: 100%; margin: 0 auto;
+    display: none;
+    gap: 20px;
+  }
+  .content.active { display: grid; }
+
+  @media (max-width: 860px) {
+    .sidebar {
+      position: fixed; inset-inline-start: 0; top: 0; height: 100vh; z-index: 200;
+      display: none;
+    }
+    .sidebar.open { display: flex; }
+    .sidebar-backdrop.open { display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 150; }
+    .icon-btn { display: inline-block; }
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+  .stat-tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .stat-tile .stat-value { font-size: 1.7rem; font-weight: 700; }
+  .stat-tile .stat-label { font-size: 0.84rem; color: var(--text-muted); margin-top: 4px; }
+  .stat-tile.status-pending .stat-value { color: var(--warn); }
+  .stat-tile.status-approved .stat-value { color: var(--good); }
+  .stat-tile.status-rejected .stat-value { color: var(--danger); }
+
+  .domain-bar-row { display: grid; grid-template-columns: 130px 1fr 32px; gap: 10px; align-items: center; margin-bottom: 10px; font-size: 0.88rem; }
+  .domain-bar-track { height: 10px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+  .domain-bar-fill { height: 100%; background: var(--primary); border-radius: 5px; }
+
+  .source-tabs { display: flex; gap: 8px; }
+  .tab-btn {
+    background: var(--bg);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .tab-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .source-panel { display: none; }
+  .source-panel.active { display: block; }
+  .inline-row { display: flex; gap: 10px; }
+  .inline-row input { flex: 1; }
+  .inline-row button { flex-shrink: 0; }
+  .hint { font-size: 0.82rem; color: var(--text-muted); margin-top: 6px; min-height: 1.2em; }
+  .hint.error { color: var(--danger); }
+  .field-header { display: flex; justify-content: space-between; align-items: center; }
+  .link-btn {
+    background: none; border: none; color: var(--primary);
+    font-size: 0.82rem; font-weight: 600; padding: 0; cursor: pointer;
+  }
+  .link-btn:hover { text-decoration: underline; background: none; }
+
+  .section-title { margin: 0; font-size: 1.05rem; }
+  .apply-link-hint { margin-bottom: 14px; }
+  .apply-link-hint code { -webkit-user-select: all; user-select: all; background: var(--bg); padding: 2px 6px; border-radius: 4px; }
+  .back-link-btn { margin-bottom: 10px; }
+
+  table.apps-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  table.apps-table th, table.apps-table td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--border); }
+  table.apps-table th { color: var(--text-muted); font-weight: 600; }
+  table.apps-table tr:hover { background: var(--bg); }
+  .score-pill { padding: 3px 10px; border-radius: 999px; color: #fff; font-size: 0.8rem; font-weight: 600; }
+
+  .status-badge { display: inline-block; padding: 3px 12px; border-radius: 999px; font-weight: 600; font-size: 0.8rem; color: #fff; }
+  .status-badge.pending { background: #b58900; }
+  .status-badge.approved, .status-badge.accepted { background: var(--good); }
+  .status-badge.rejected { background: var(--danger); }
+
+  .wt-question { padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .wt-question .wt-q-text { font-weight: 600; margin-bottom: 6px; font-size: 0.92rem; }
+  .wt-options { display: grid; gap: 6px; }
+  .wt-options label { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; font-weight: 400; margin: 0; }
+  .wt-open-answer {
+    width: 100%; min-height: 38px; height: 38px; padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    font-family: inherit; font-size: 0.88rem; resize: vertical;
+  }
+  .wt-open-answer:focus { height: 90px; }
+  .wt-result-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .wt-result-row .wt-score { font-weight: 700; }
+  .wt-result-row .wt-score.correct { color: var(--good); }
+  .wt-result-row .wt-score.incorrect { color: var(--danger); }
+
+  .decision-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  .decision-actions button.accept-btn { background: var(--good); }
+  .decision-actions button.reject-btn { background: var(--danger); }
+
+  .subsection { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); }
+  .subsection h3 { margin: 0 0 12px; font-size: 0.95rem; }
+  .interview-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .employees-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .employees-actions a { text-decoration: none; }
+  .iqama-status { font-size: 0.78rem; margin-top: 2px; }
+  .interview-actions button.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+  .interview-actions button.danger-btn { background: var(--danger); }
+  .approve-form { display: none; gap: 10px; margin-top: 10px; }
+  .approve-form.active { display: grid; }
+  .approve-form input, .approve-form textarea {
+    padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font-family: inherit; font-size: 0.9rem;
+  }
+
+  .question-item {
+    display: flex; justify-content: space-between; gap: 10px; align-items: flex-start;
+    padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem;
+  }
+  .question-item .q-body { flex: 1; }
+  .question-item .q-tags { flex-shrink: 0; display: flex; gap: 6px; }
+  .question-item .q-tag {
+    font-size: 0.72rem; padding: 2px 8px; border-radius: 999px;
+    background: var(--bg); color: var(--text-muted); height: fit-content; white-space: nowrap;
+  }
+  .options-list { margin: 8px 0 0; padding-inline-start: 18px; font-size: 0.85rem; color: var(--text-muted); }
+  .options-list li.correct-option { color: var(--good); font-weight: 600; }
+  .edit-question-btn { background: none; border: none; color: var(--text-muted); font-size: 0.78rem; cursor: pointer; padding: 2px 4px; }
+  .edit-question-btn:hover { color: var(--primary); text-decoration: underline; }
+  .delete-question-btn:hover { color: var(--danger); }
+
+  .edit-question-form { display: grid; gap: 8px; margin-top: 8px; }
+  .edit-question-form input, .edit-question-form textarea {
+    padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font-family: inherit; font-size: 0.88rem;
+  }
+  .edit-question-form .edit-options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .edit-question-form .edit-actions { display: flex; gap: 8px; }
+  .edit-question-form .edit-actions button.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+
+  .add-question-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .add-question-row input[type=text] { flex: 1; min-width: 200px; }
+  .add-question-row label { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-muted); margin: 0; }
+  .add-mcq-options { display: none; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .add-mcq-options.active { display: grid; }
+  .add-mcq-options input { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family: inherit; font-size: 0.88rem; }
+  label { display: block; font-size: 0.9rem; margin-bottom: 6px; color: var(--text-muted); }
+  input[type=text], select, textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.95rem;
+  }
+  textarea { resize: vertical; }
+  #cv_text { min-height: 160px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .field { margin-bottom: 14px; }
+
+  button {
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    padding: 11px 22px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  button:hover { background: var(--primary-dark); }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  #status { margin-top: 12px; font-size: 0.9rem; color: var(--text-muted); }
+  #status.error { color: var(--danger); }
+
+  .hidden { display: none; }
+
+  .score-header { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .gauge {
+    width: 96px; height: 96px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; font-weight: 700;
+    background: conic-gradient(var(--gauge-color, var(--good)) calc(var(--pct, 0) * 1%), var(--border) 0);
+    flex-shrink: 0;
+  }
+  .gauge span { background: var(--surface); width: 74px; height: 74px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .score-meta h2 { margin: 0 0 4px; font-size: 1.1rem; }
+  .score-meta .rec { color: var(--text-muted); font-size: 0.92rem; }
+
+  .criterion { margin-bottom: 14px; }
+  .criterion-top { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 5px; }
+  .bar-track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; background: var(--good); }
+  .justification { font-size: 0.82rem; color: var(--text-muted); margin-top: 4px; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 8px; }
+  @media (max-width: 620px) { .cols, .row { grid-template-columns: 1fr; } }
+  .cols h3 { font-size: 0.95rem; margin: 0 0 8px; }
+  .cols ul { margin: 0; padding-inline-start: 20px; font-size: 0.88rem; line-height: 1.7; }
+  .cols.strengths h3 { color: var(--good); }
+  .cols.gaps h3 { color: var(--danger); }
+
+  .disclaimer {
+    margin-top: 18px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    border-top: 1px dashed var(--border);
+    padding-top: 12px;
+  }
+
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid var(--border); border-top-color: var(--primary);
+    border-radius: 50%; animation: spin 0.8s linear infinite; margin-inline-end: 8px; vertical-align: -2px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; padding: 16px;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 22px; max-width: 420px; width: 100%;
+  }
+  .modal-box h3 { margin: 0 0 10px; font-size: 1.05rem; }
+  .modal-box p { margin: 0 0 12px; font-size: 0.92rem; color: var(--text-muted); white-space: pre-wrap; }
+  .modal-box textarea {
+    width: 100%; min-height: 80px; padding: 9px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    font-family: inherit; font-size: 0.92rem; margin-bottom: 12px;
+  }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .modal-actions button.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">HR Agent</div>
+    <nav class="sidebar-nav">
+      <button type="button" class="nav-item active" data-view="overview">📊 نظرة عامة</button>
+      <button type="button" class="nav-item" data-view="applications">📥 الطلبات الواردة</button>
+      <button type="button" class="nav-item" data-view="jobs">💼 المسميات الوظيفية</button>
+      <button type="button" class="nav-item" data-view="employees">👥 الموظفون</button>
+      <button type="button" class="nav-item" data-view="analyze">🧪 تحليل سيرة ذاتية</button>
+      <button type="button" class="nav-item" data-view="criteria">⚙️ المجالات والمعايير</button>
+      <button type="button" class="nav-item" data-view="audit">📋 سجل التدقيق</button>
+      <button type="button" class="nav-item" data-view="system">🔧 النظام</button>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="/apply" target="_blank">🔗 صفحة التقديم للمرشحين</a>
+    </div>
+  </aside>
+
+  <div class="main-col">
+    <header class="topbar">
+      <button type="button" id="sidebar-toggle" class="icon-btn" aria-label="القائمة">☰</button>
+      <h1 id="topbar-title">نظرة عامة</h1>
+      <button type="button" id="logout-btn" class="link-btn">تسجيل خروج</button>
+    </header>
+
+    <section class="content active" id="view-overview">
+      <div class="stats-grid" id="overview-stats">جارٍ التحميل...</div>
+      <div class="card">
+        <h3 style="margin-top:0;">الطلبات حسب المجال</h3>
+        <div id="overview-domains"></div>
+      </div>
+    </section>
+
+    <section class="content" id="view-applications">
+      <section class="card" id="applications-card">
+        <div class="field-header">
+          <h2 class="section-title">الطلبات الواردة من صفحة التقديم</h2>
+          <button type="button" id="refresh-apps-btn" class="link-btn">تحديث</button>
+        </div>
+        <p class="hint apply-link-hint">
+          رابط صفحة التقديم للمرشحين:
+          <code id="apply-link"></code>
+        </p>
+        <div id="applications-list"></div>
+      </section>
+
+      <section class="card hidden" id="app-detail-card">
+        <button type="button" id="close-detail-btn" class="link-btn back-link-btn">← رجوع للقائمة</button>
+        <div id="app-detail-body"></div>
+      </section>
+    </section>
+
+    <section class="content" id="view-jobs">
+      <div class="card">
+        <div class="field-header">
+          <h2 class="section-title">المسميات الوظيفية</h2>
+          <button type="button" id="add-job-btn">+ إضافة مسمى وظيفي</button>
+        </div>
+        <div id="jobs-list" style="margin-top:14px;">جارٍ التحميل...</div>
+      </div>
+
+      <div class="card hidden" id="candidate-job-titles-card">
+        <h3 style="margin-top:0;">مسميات وردت من طلبات المتقدمين وليست مضافة رسميًا</h3>
+        <p class="hint">مسميات كتبها متقدمون في صفحة التقديم ولا تقابل مسمى وظيفي رسمي بعد.</p>
+        <div id="candidate-job-titles-list"></div>
+      </div>
+
+      <div class="card hidden" id="job-form-card">
+        <h3 id="job-form-title" style="margin-top:0;">إضافة مسمى وظيفي</h3>
+        <input type="hidden" id="job-form-id">
+        <div class="row">
+          <div class="field">
+            <label for="job-title-input">المسمى الوظيفي</label>
+            <input type="text" id="job-title-input" placeholder="مثال: محاسب أول">
+          </div>
+          <div class="field">
+            <label for="job-domain-input">المجال</label>
+            <select id="job-domain-input"></select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="job-location-input">الموقع (اختياري)</label>
+            <input type="text" id="job-location-input" placeholder="مثال: الرياض">
+          </div>
+          <div class="field">
+            <label for="job-status-input">الحالة</label>
+            <select id="job-status-input">
+              <option value="open">مفتوحة</option>
+              <option value="closed">مغلقة</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="job-description-input">وصف الوظيفة (اختياري)</label>
+          <textarea id="job-description-input" rows="3" placeholder="المهام والمتطلبات..."></textarea>
+        </div>
+        <div class="interview-actions">
+          <button type="button" id="save-job-btn">حفظ</button>
+          <button type="button" class="secondary" id="cancel-job-btn">إلغاء</button>
+        </div>
+        <div id="job-form-status" class="hint"></div>
+      </div>
+    </section>
+
+    <section class="content" id="view-employees">
+      <div class="card">
+        <div class="field-header">
+          <h2 class="section-title">بيانات الموظفين</h2>
+          <div class="employees-actions">
+            <a href="/api/v1/employees/import/template" id="download-template-link"><button type="button" class="secondary">⬇️ تنزيل نموذج Excel</button></a>
+            <button type="button" class="secondary" id="import-excel-btn">📥 استيراد من Excel</button>
+            <input type="file" id="import-excel-input" accept=".xlsx" class="hidden">
+            <button type="button" id="add-employee-btn">+ إضافة موظف</button>
+          </div>
+        </div>
+        <div id="import-status" class="hint"></div>
+        <div id="employees-list" style="margin-top:14px;">جارٍ التحميل...</div>
+      </div>
+
+      <div class="card hidden" id="employee-form-card">
+        <h3 id="employee-form-title" style="margin-top:0;">إضافة موظف</h3>
+        <input type="hidden" id="employee-form-id">
+        <div class="row">
+          <div class="field">
+            <label for="employee-name-input">الاسم الكامل</label>
+            <input type="text" id="employee-name-input">
+          </div>
+          <div class="field">
+            <label for="employee-number-input">الرقم الوظيفي (اختياري)</label>
+            <input type="text" id="employee-number-input">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="employee-nationality-input">الجنسية</label>
+            <input type="text" id="employee-nationality-input">
+          </div>
+          <div class="field">
+            <label for="employee-jobtitle-input">المسمى الوظيفي</label>
+            <input type="text" id="employee-jobtitle-input">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="employee-phone-input">رقم الجوال (اختياري)</label>
+            <input type="tel" id="employee-phone-input">
+          </div>
+          <div class="field">
+            <label for="employee-salary-input">الراتب</label>
+            <input type="number" id="employee-salary-input" step="0.01">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="employee-iqama-input">رقم الإقامة</label>
+            <input type="text" id="employee-iqama-input">
+          </div>
+          <div class="field">
+            <label for="employee-expiry-input">تاريخ انتهاء الإقامة</label>
+            <input type="date" id="employee-expiry-input">
+          </div>
+        </div>
+        <div class="interview-actions">
+          <button type="button" id="save-employee-btn">حفظ</button>
+          <button type="button" class="secondary" id="cancel-employee-btn">إلغاء</button>
+        </div>
+        <div id="employee-form-status" class="hint"></div>
+      </div>
+    </section>
+
+    <section class="content" id="view-analyze">
+      <form class="card" id="analyze-form">
+        <div class="row">
+          <div class="field">
+            <label for="job_title">المسمى الوظيفي</label>
+            <input type="text" id="job_title" placeholder="مثال: محاسب أول" required>
+          </div>
+          <div class="field">
+            <label for="domain">المجال</label>
+            <select id="domain"></select>
+          </div>
+        </div>
+        <div class="field">
+          <label>مصدر السيرة الذاتية</label>
+          <div class="source-tabs" id="source-tabs">
+            <button type="button" class="tab-btn active" data-source="text">لصق نص</button>
+            <button type="button" class="tab-btn" data-source="file">رفع ملف</button>
+            <button type="button" class="tab-btn" data-source="url">رابط موقع</button>
+          </div>
+        </div>
+
+        <div class="field source-panel" data-panel="file">
+          <label for="cv_file">ملف السيرة الذاتية (PDF, DOCX, TXT)</label>
+          <div class="inline-row">
+            <input type="file" id="cv_file" accept=".pdf,.docx,.txt,.md">
+            <button type="button" id="extract-file-btn">استخراج النص</button>
+          </div>
+          <div class="hint" id="file-status"></div>
+        </div>
+
+        <div class="field source-panel" data-panel="url">
+          <label for="cv_url">رابط الموقع (مثال: صفحة LinkedIn أو موقع شخصي)</label>
+          <div class="inline-row">
+            <input type="text" id="cv_url" placeholder="https://example.com/cv">
+            <button type="button" id="extract-url-btn">استخراج النص</button>
+          </div>
+          <div class="hint" id="url-status"></div>
+        </div>
+
+        <div class="field">
+          <div class="field-header">
+            <label for="cv_text">نص السيرة الذاتية</label>
+            <button type="button" id="sample-btn" class="link-btn">تعبئة مثال محاسب</button>
+          </div>
+          <textarea id="cv_text" placeholder="الصق نص السيرة الذاتية هنا (20 حرفًا على الأقل)، أو استخدم رفع ملف / رابط موقع أعلاه..." required></textarea>
+        </div>
+        <button type="submit" id="submit-btn">حلّل السيرة الذاتية</button>
+        <div id="status"></div>
+      </form>
+
+      <section class="card hidden" id="result-card">
+        <div class="score-header">
+          <div class="gauge" id="gauge"><span id="gauge-value">0</span></div>
+          <div class="score-meta">
+            <h2 id="result-title"></h2>
+            <div class="rec" id="result-rec"></div>
+          </div>
+        </div>
+
+        <div id="criteria-list" style="margin-top:20px;"></div>
+
+        <div class="cols">
+          <div class="strengths">
+            <h3>نقاط القوة</h3>
+            <ul id="strengths-list"></ul>
+          </div>
+          <div class="gaps">
+            <h3>الفجوات</h3>
+            <ul id="gaps-list"></ul>
+          </div>
+        </div>
+
+        <div class="disclaimer" id="disclaimer"></div>
+      </section>
+    </section>
+
+    <section class="content" id="view-criteria">
+      <div class="card">
+        <h2 class="section-title" style="margin-bottom:8px;">المجالات ومعايير التقييم</h2>
+        <p class="hint">عرض للاطلاع فقط — يعدّلها خبير HR مباشرة عبر ملفات JSON في <code>backend/app/criteria/</code> بدون حاجة لمبرمج.</p>
+      </div>
+      <div id="criteria-view-body">جارٍ التحميل...</div>
+    </section>
+
+    <section class="content" id="view-audit">
+      <div class="card">
+        <div class="field-header">
+          <h2 class="section-title">سجل التدقيق</h2>
+          <button type="button" id="refresh-audit-btn" class="link-btn">تحديث</button>
+        </div>
+        <p class="hint">آخر العمليات في النظام — جميع التعديلات والإجراءات تُسجّل تلقائياً.</p>
+        <div id="audit-list">جارٍ التحميل...</div>
+      </div>
+    </section>
+
+    <section class="content" id="view-system">
+      <div id="system-view-body" class="card">جارٍ التحميل...</div>
+    </section>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="modal-overlay">
+  <div class="modal-box">
+    <h3 id="modal-title"></h3>
+    <p id="modal-message"></p>
+    <textarea id="modal-input" class="hidden"></textarea>
+    <div class="modal-actions">
+      <button type="button" id="modal-cancel-btn" class="secondary">إلغاء</button>
+      <button type="button" id="modal-confirm-btn">موافق</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="force-password-overlay">
+  <div class="modal-box" style="max-width:460px;">
+    <h3>🔒 تغيير كلمة المرور الافتراضية</h3>
+    <p style="color:var(--danger);font-weight:600;">يجب تغيير كلمة المرور الافتراضية قبل استخدام النظام.</p>
+    <div class="field">
+      <label for="force-current-password">كلمة المرور الحالية</label>
+      <input type="password" id="force-current-password">
+    </div>
+    <div class="field">
+      <label for="force-new-password">كلمة المرور الجديدة (6 أحرف على الأقل)</label>
+      <input type="password" id="force-new-password">
+    </div>
+    <div class="field">
+      <label for="force-confirm-password">تأكيد كلمة المرور</label>
+      <input type="password" id="force-confirm-password">
+    </div>
+    <div id="force-password-status" class="hint error"></div>
+    <div class="modal-actions">
+      <button type="button" id="force-password-btn" style="width:100%;">تغيير كلمة المرور</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = "/api/v1";
+
+// كل الطلبات للـ API تمر من هنا — لو رجع 401 (جلسة منتهية/غير مسجّل) نحوّل لصفحة الدخول
+async function apiFetch(url, options) {
+  const res = await fetch(url, options);
+  if (res.status === 401) {
+    location.href = "/login?redirect=" + encodeURIComponent(location.pathname);
+    throw new Error("جلسة الدخول منتهية");
+  }
+  return res;
+}
+
+async function checkAuth() {
+  const res = await fetch(`${API_BASE}/auth/status`);
+  const data = await res.json();
+  if (!data.authenticated) {
+    location.href = "/login?redirect=" + encodeURIComponent(location.pathname);
+    return;
+  }
+  if (data.must_change_password || location.search.includes("force_change_password=1")) {
+    document.getElementById("force-password-overlay").classList.remove("hidden");
+  }
+  if (!data.must_change_password) {
+    const badge = document.getElementById("password-status-badge");
+    if (badge) {
+      badge.textContent = "تم التغيير";
+      badge.className = "status-badge approved";
+    }
+  }
+}
+
+document.getElementById("force-password-btn").addEventListener("click", async () => {
+  const statusEl = document.getElementById("force-password-status");
+  const current = document.getElementById("force-current-password").value;
+  const newPass = document.getElementById("force-new-password").value;
+  const confirm = document.getElementById("force-confirm-password").value;
+
+  if (newPass.length < 6) { statusEl.textContent = "كلمة المرور الجديدة 6 أحرف على الأقل."; return; }
+  if (newPass !== confirm) { statusEl.textContent = "كلمة المرور الجديدة وتأكيدها غير متطابقين."; return; }
+
+  statusEl.textContent = "جارٍ الحفظ...";
+  try {
+    const res = await apiFetch(`${API_BASE}/auth/change-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password: current, new_password: newPass }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "تعذّر التغيير.");
+    document.getElementById("force-password-overlay").classList.add("hidden");
+    const badge = document.getElementById("password-status-badge");
+    if (badge) {
+      badge.textContent = "تم التغيير";
+      badge.className = "status-badge approved";
+    }
+  } catch (e) {
+    statusEl.textContent = "خطأ: " + e.message;
+  }
+});
+
+document.getElementById("logout-btn").addEventListener("click", async () => {
+  await fetch(`${API_BASE}/auth/logout`, { method: "POST" });
+  location.href = "/login";
+});
+
+checkAuth();
+
+// التنقّل بين شاشات الداشبورد (Overview / Applications / Analyze / Criteria / System)
+const viewTitles = {
+  overview: "نظرة عامة",
+  applications: "الطلبات الواردة",
+  jobs: "المسميات الوظيفية",
+  employees: "الموظفون",
+  analyze: "تحليل سيرة ذاتية",
+  criteria: "المجالات والمعايير",
+  audit: "سجل التدقيق",
+  system: "النظام",
+};
+
+function switchView(view) {
+  document.querySelectorAll(".content").forEach(v => v.classList.remove("active"));
+  document.getElementById("view-" + view).classList.add("active");
+  document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.view === view));
+  document.getElementById("topbar-title").textContent = viewTitles[view];
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("sidebar-backdrop").classList.remove("open");
+
+  if (view === "overview") loadOverview();
+  if (view === "applications") loadApplications();
+  if (view === "jobs") loadJobs();
+  if (view === "employees") loadEmployees();
+  if (view === "criteria") loadCriteriaView();
+  if (view === "audit") loadAuditLogs();
+  if (view === "system") loadSystemView();
+}
+
+document.querySelectorAll(".nav-item").forEach(btn => {
+  btn.addEventListener("click", () => switchView(btn.dataset.view));
+});
+
+document.getElementById("sidebar-toggle").addEventListener("click", () => {
+  document.getElementById("sidebar").classList.toggle("open");
+  document.getElementById("sidebar-backdrop").classList.toggle("open");
+});
+document.getElementById("sidebar-backdrop").addEventListener("click", () => {
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("sidebar-backdrop").classList.remove("open");
+});
+
+async function loadOverview() {
+  const grid = document.getElementById("overview-stats");
+  const domainCard = document.getElementById("overview-domains");
+  grid.textContent = "جارٍ التحميل...";
+  try {
+    const res = await apiFetch(`${API_BASE}/applications`);
+    const apps = await res.json();
+
+    const byStatus = { pending: 0, approved: 0, rejected: 0 };
+    const byDecision = { accepted: 0, rejected: 0 };
+    const byDomain = {};
+    let scoreSum = 0, scoreCount = 0;
+
+    apps.forEach(a => {
+      const st = a.status || "pending";
+      byStatus[st] = (byStatus[st] || 0) + 1;
+      if (a.hiring_decision) byDecision[a.hiring_decision] = (byDecision[a.hiring_decision] || 0) + 1;
+      const d = a.domain || "غير محدد";
+      byDomain[d] = (byDomain[d] || 0) + 1;
+      if (a.overall_score !== null && a.overall_score !== undefined) {
+        scoreSum += a.overall_score;
+        scoreCount++;
+      }
+    });
+
+    const avgScore = scoreCount ? Math.round(scoreSum / scoreCount) : null;
+
+    let expiringIqamaCount = 0;
+    try {
+      const empRes = await apiFetch(`${API_BASE}/employees`);
+      const employees = await empRes.json();
+      expiringIqamaCount = employees.filter(e => {
+        const st = iqamaStatus(e.iqama_expiry_date);
+        return st && (st.cls === "pending" || st.cls === "rejected");
+      }).length;
+    } catch (e) {
+      // تجاهل — قسم الموظفين اختياري في النظرة العامة
+    }
+
+    grid.innerHTML = `
+      <div class="stat-tile">
+        <div class="stat-value">${apps.length}</div>
+        <div class="stat-label">إجمالي الطلبات</div>
+      </div>
+      <div class="stat-tile status-pending">
+        <div class="stat-value">${byStatus.pending || 0}</div>
+        <div class="stat-label">قيد المراجعة</div>
+      </div>
+      <div class="stat-tile status-approved">
+        <div class="stat-value">${byStatus.approved || 0}</div>
+        <div class="stat-label">تمت الموافقة على مقابلتهم</div>
+      </div>
+      <div class="stat-tile status-rejected">
+        <div class="stat-value">${byStatus.rejected || 0}</div>
+        <div class="stat-label">تم الاعتذار عن مقابلتهم</div>
+      </div>
+      <div class="stat-tile status-approved">
+        <div class="stat-value">${byDecision.accepted || 0}</div>
+        <div class="stat-label">قُبلوا نهائيًا</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-value">${avgScore !== null ? avgScore : "—"}</div>
+        <div class="stat-label">متوسط درجة تحليل السيرة الذاتية</div>
+      </div>
+      <div class="stat-tile ${expiringIqamaCount > 0 ? "status-rejected" : "status-approved"}">
+        <div class="stat-value">${expiringIqamaCount}</div>
+        <div class="stat-label">إقامات تحتاج تجديدًا قريبًا أو منتهية</div>
+      </div>
+    `;
+
+    const maxCount = Math.max(1, ...Object.values(byDomain));
+    const domainEntries = Object.entries(byDomain).sort((a, b) => b[1] - a[1]);
+    domainCard.innerHTML = domainEntries.length
+      ? domainEntries.map(([d, c]) => `
+          <div class="domain-bar-row">
+            <span>${d}</span>
+            <div class="domain-bar-track"><div class="domain-bar-fill" style="width:${(c / maxCount) * 100}%"></div></div>
+            <span>${c}</span>
+          </div>
+        `).join("")
+      : '<p class="hint">لا توجد بيانات بعد.</p>';
+  } catch (e) {
+    grid.textContent = "تعذّر تحميل الإحصائيات.";
+  }
+}
+
+async function loadCriteriaView() {
+  const container = document.getElementById("criteria-view-body");
+  container.textContent = "جارٍ التحميل...";
+  try {
+    const res = await apiFetch(`${API_BASE}/domains`);
+    const data = await res.json();
+    const domains = data.domains || [];
+
+    const cards = await Promise.all(domains.map(async d => {
+      const cRes = await apiFetch(`${API_BASE}/criteria/${d}`);
+      const cData = await cRes.json();
+      const rows = (cData.criteria || []).map(c => `
+        <tr>
+          <td>${c.label_ar}</td>
+          <td>${c.weight}%</td>
+          <td class="hint">${c.description_ar || ""}</td>
+        </tr>
+      `).join("");
+      return `
+        <div class="card">
+          <h3 style="margin-top:0;">${cData.domain_ar || d} <span class="hint">(${d})</span></h3>
+          <table class="apps-table">
+            <thead><tr><th>المعيار</th><th>الوزن</th><th>الوصف</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    }));
+
+    container.innerHTML = cards.join("") || '<p class="hint">لا توجد مجالات معرّفة بعد.</p>';
+  } catch (e) {
+    container.textContent = "تعذّر تحميل المعايير.";
+  }
+}
+
+async function loadAuditLogs() {
+  const container = document.getElementById("audit-list");
+  container.textContent = "جارٍ التحميل...";
+  try {
+    const res = await apiFetch(`${API_BASE}/audit-logs`);
+    const logs = await res.json();
+    if (!logs.length) {
+      container.textContent = "لا توجد سجلات بعد.";
+      return;
+    }
+    const actionLabels = {
+      login: "تسجيل دخول", login_failed: "محاولة دخول فاشلة",
+      change_password: "تغيير كلمة المرور", change_password_failed: "فشل تغيير كلمة المرور",
+      approve: "موافقة على مقابلة", reject: "رفض طلب",
+      accepted: "قبول نهائي", deleted: "رفض نهائي",
+      create: "إضافة", update: "تعديل", delete: "حذف", import: "استيراد",
+    };
+    const typeLabels = {
+      auth: "المصادقة", application: "طلب تقديم", job: "وظيفة", employee: "موظف",
+    };
+    container.innerHTML = `
+      <table class="apps-table">
+        <thead><tr>
+          <th>الوقت</th><th>المستخدم</th><th>الإجراء</th><th>النوع</th><th>التفاصيل</th>
+        </tr></thead>
+        <tbody>${logs.map(log => {
+          const time = new Date(log.created_at).toLocaleString("ar");
+          const action = actionLabels[log.action] || log.action;
+          const type = typeLabels[log.resource_type] || log.resource_type;
+          let detail = log.resource_id || "";
+          if (log.details) {
+            const extra = Object.values(log.details).filter(v => v && typeof v === "string").join(" — ");
+            if (extra) detail += (detail ? " — " : "") + extra;
+          }
+          return `<tr><td style="white-space:nowrap;">${time}</td><td>${log.username}</td><td>${action}</td><td>${type}</td><td class="hint">${detail}</td></tr>`;
+        }).join("")}</tbody>
+      </table>`;
+  } catch (e) {
+    container.textContent = "تعذّر تحميل سجل التدقيق.";
+  }
+}
+
+document.getElementById("refresh-audit-btn").addEventListener("click", loadAuditLogs);
+
+async function loadSystemView() {
+  const container = document.getElementById("system-view-body");
+  container.textContent = "جارٍ التحميل...";
+  try {
+    const res = await fetch("/health");
+    const data = await res.json();
+    container.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-tile ${data.configured ? "status-approved" : "status-rejected"}">
+          <div class="stat-value">${data.configured ? "متصل ✔" : "غير مهيّأ ✘"}</div>
+          <div class="stat-label">حالة الاتصال بنموذج الذكاء الاصطناعي</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-value">${data.provider}</div>
+          <div class="stat-label">المزوّد الحالي</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-value" style="font-size:1rem;">${data.model}</div>
+          <div class="stat-label">النموذج المستخدم</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-value">${data.active_domain}</div>
+          <div class="stat-label">المجال الافتراضي</div>
+        </div>
+      </div>
+      <div class="field-header" style="margin-top:16px;">
+        <h3>تغيير كلمة مرور الدخول</h3>
+        <span id="password-status-badge" class="status-badge pending" style="font-size:0.78rem;">يجب التغيير</span>
+      </div>
+
+      <div class="subsection">
+        <h3>تغيير كلمة مرور الدخول</h3>
+        <div class="row">
+          <div class="field">
+            <label for="current-password-input">كلمة المرور الحالية</label>
+            <input type="password" id="current-password-input">
+          </div>
+          <div class="field">
+            <label for="new-password-input">كلمة المرور الجديدة (6 أحرف على الأقل)</label>
+            <input type="password" id="new-password-input">
+          </div>
+        </div>
+        <button type="button" id="change-password-btn">تغيير كلمة المرور</button>
+        <div id="change-password-status" class="hint"></div>
+      </div>
+    `;
+
+    document.getElementById("change-password-btn").addEventListener("click", async () => {
+      const statusEl = document.getElementById("change-password-status");
+      const current_password = document.getElementById("current-password-input").value;
+      const new_password = document.getElementById("new-password-input").value;
+
+      if (new_password.length < 6) {
+        statusEl.textContent = "كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل.";
+        statusEl.className = "hint error";
+        return;
+      }
+
+      statusEl.className = "hint";
+      statusEl.textContent = "جارٍ الحفظ...";
+      try {
+        const res = await apiFetch(`${API_BASE}/auth/change-password`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ current_password, new_password }),
+        });
+        const resData = await res.json();
+        if (!res.ok) throw new Error(resData.detail || "تعذّر تغيير كلمة المرور.");
+        document.getElementById("current-password-input").value = "";
+        document.getElementById("new-password-input").value = "";
+        statusEl.textContent = "تم تغيير كلمة المرور بنجاح.";
+      } catch (e) {
+        statusEl.textContent = "خطأ: " + e.message;
+        statusEl.className = "hint error";
+      }
+    });
+  } catch (e) {
+    container.textContent = "تعذّر تحميل حالة النظام.";
+  }
+}
+
+async function loadJobDomainOptions(selectEl, selectedValue) {
+  try {
+    const res = await apiFetch(`${API_BASE}/domains`);
+    const data = await res.json();
+    const domains = data.domains || [];
+    const labeled = await Promise.all(domains.map(async d => {
+      try {
+        const cRes = await apiFetch(`${API_BASE}/criteria/${d}`);
+        const cData = await cRes.json();
+        return { key: d, label: cData.domain_ar || d };
+      } catch {
+        return { key: d, label: d };
+      }
+    }));
+    selectEl.innerHTML = '<option value="">بلا مجال محدد</option>' +
+      labeled.map(({ key, label }) => `<option value="${key}">${label}</option>`).join("");
+    if (selectedValue) selectEl.value = selectedValue;
+  } catch (e) {
+    selectEl.innerHTML = '<option value="">تعذّر تحميل المجالات</option>';
+  }
+}
+
+const jobStatusLabels = { open: "مفتوحة", closed: "مغلقة" };
+
+async function loadCandidateJobTitleSuggestions(jobs) {
+  const card = document.getElementById("candidate-job-titles-card");
+  const listEl = document.getElementById("candidate-job-titles-list");
+  try {
+    const res = await apiFetch(`${API_BASE}/applications`);
+    const apps = await res.json();
+
+    const existingTitles = new Set(jobs.map(j => j.title.trim().toLowerCase()));
+    const counts = {};
+    apps.forEach(a => {
+      const t = (a.job_title || "").trim();
+      if (!t) return;
+      counts[t] = (counts[t] || 0) + 1;
+    });
+
+    const suggestions = Object.entries(counts)
+      .filter(([t]) => !existingTitles.has(t.toLowerCase()))
+      .sort((a, b) => b[1] - a[1]);
+
+    if (!suggestions.length) {
+      card.classList.add("hidden");
+      return;
+    }
+
+    card.classList.remove("hidden");
+    listEl.innerHTML = "";
+    suggestions.forEach(([title, count]) => {
+      const row = document.createElement("div");
+      row.className = "question-item";
+      row.innerHTML = `<div class="q-body">${title} <span class="hint">(${count} طلب)</span></div>`;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "link-btn";
+      btn.textContent = "+ إضافة كمسمى رسمي";
+      btn.addEventListener("click", () => {
+        openJobForm(null);
+        document.getElementById("job-title-input").value = title;
+      });
+      row.appendChild(btn);
+      listEl.appendChild(row);
+    });
+  } catch (e) {
+    card.classList.add("hidden");
+  }
+}
+
+async function loadJobs() {
+  const list = document.getElementById("jobs-list");
+  list.textContent = "جارٍ التحميل...";
+  try {
+    const res = await apiFetch(`${API_BASE}/jobs`);
+    const jobs = await res.json();
+
+    await loadCandidateJobTitleSuggestions(jobs);
+
+    if (!jobs.length) {
+      list.textContent = "لا توجد مسميات وظيفية مضافة بعد.";
+      return;
+    }
+    const rows = jobs.map(j => `
+      <tr data-id="${j.id}">
+        <td>${j.title}</td>
+        <td>${j.domain || "-"}</td>
+        <td>${j.location || "-"}</td>
+        <td><span class="status-badge ${j.status === "open" ? "approved" : "rejected"}">${jobStatusLabels[j.status] || j.status}</span></td>
+        <td>${new Date(j.created_at).toLocaleDateString("ar")}</td>
+        <td>
+          <button type="button" class="link-btn edit-job-btn">تعديل</button>
+          <button type="button" class="link-btn toggle-job-btn">${j.status === "open" ? "إغلاق" : "فتح"}</button>
+          <button type="button" class="link-btn delete-job-btn" style="color:var(--danger);">حذف</button>
+        </td>
+      </tr>
+    `).join("");
+    list.innerHTML = `
+      <table class="apps-table">
+        <thead><tr>
+          <th>المسمى الوظيفي</th><th>المجال</th><th>الموقع</th><th>الحالة</th><th>تاريخ الإضافة</th><th></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+
+    list.querySelectorAll(".edit-job-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const id = e.target.closest("tr").dataset.id;
+        openJobForm(jobs.find(j => j.id === id));
+      });
+    });
+    list.querySelectorAll(".toggle-job-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        const id = e.target.closest("tr").dataset.id;
+        const job = jobs.find(j => j.id === id);
+        const newStatus = job.status === "open" ? "closed" : "open";
+        await apiFetch(`${API_BASE}/jobs/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus }),
+        });
+        await loadJobs();
+      });
+    });
+    list.querySelectorAll(".delete-job-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        const id = e.target.closest("tr").dataset.id;
+        const job = jobs.find(j => j.id === id);
+        const ok = await showConfirmModal(`هل أنت متأكد من حذف المسمى الوظيفي "${job.title}"؟`, "حذف مسمى وظيفي");
+        if (!ok) return;
+        await apiFetch(`${API_BASE}/jobs/${id}`, { method: "DELETE" });
+        await loadJobs();
+      });
+    });
+  } catch (e) {
+    list.textContent = "تعذّر تحميل المسميات الوظيفية.";
+  }
+}
+
+async function openJobForm(job) {
+  const card = document.getElementById("job-form-card");
+  card.classList.remove("hidden");
+  document.getElementById("job-form-title").textContent = job ? "تعديل مسمى وظيفي" : "إضافة مسمى وظيفي";
+  document.getElementById("job-form-id").value = job ? job.id : "";
+  document.getElementById("job-title-input").value = job ? job.title : "";
+  document.getElementById("job-location-input").value = job ? job.location || "" : "";
+  document.getElementById("job-status-input").value = job ? job.status : "open";
+  document.getElementById("job-description-input").value = job ? job.description || "" : "";
+  document.getElementById("job-form-status").textContent = "";
+  await loadJobDomainOptions(document.getElementById("job-domain-input"), job ? job.domain : "");
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+document.getElementById("add-job-btn").addEventListener("click", () => openJobForm(null));
+document.getElementById("cancel-job-btn").addEventListener("click", () => {
+  document.getElementById("job-form-card").classList.add("hidden");
+});
+
+document.getElementById("save-job-btn").addEventListener("click", async () => {
+  const statusEl = document.getElementById("job-form-status");
+  const id = document.getElementById("job-form-id").value;
+  const title = document.getElementById("job-title-input").value.trim();
+  if (title.length < 2) {
+    statusEl.textContent = "اكتب مسمى وظيفي صحيح.";
+    statusEl.className = "hint error";
+    return;
+  }
+
+  const payload = {
+    title,
+    domain: document.getElementById("job-domain-input").value || null,
+    location: document.getElementById("job-location-input").value.trim() || null,
+    status: document.getElementById("job-status-input").value,
+    description: document.getElementById("job-description-input").value.trim() || null,
+  };
+
+  statusEl.className = "hint";
+  statusEl.textContent = "جارٍ الحفظ...";
+  try {
+    const res = await apiFetch(
+      id ? `${API_BASE}/jobs/${id}` : `${API_BASE}/jobs`,
+      {
+        method: id ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "تعذّر الحفظ.");
+    document.getElementById("job-form-card").classList.add("hidden");
+    await loadJobs();
+  } catch (e) {
+    statusEl.textContent = "خطأ: " + e.message;
+    statusEl.className = "hint error";
+  }
+});
+
+// قسم بيانات الموظفين (رواتب، جنسيات، إقامات) — بيانات حساسة، كل شيء هنا خلف تسجيل الدخول
+function iqamaStatus(dateStr) {
+  if (!dateStr) return null;
+  const expiry = new Date(dateStr);
+  if (isNaN(expiry)) return null;
+  const daysLeft = Math.ceil((expiry - new Date()) / (1000 * 60 * 60 * 24));
+  if (daysLeft < 0) return { label: "منتهية", cls: "rejected" };
+  if (daysLeft <= 30) return { label: `تنتهي خلال ${daysLeft} يوم`, cls: "pending" };
+  return { label: "سارية", cls: "approved" };
+}
+
+async function loadEmployees() {
+  const list = document.getElementById("employees-list");
+  list.textContent = "جارٍ التحميل...";
+  try {
+    const res = await apiFetch(`${API_BASE}/employees`);
+    const employees = await res.json();
+    if (!employees.length) {
+      list.textContent = "لا توجد بيانات موظفين بعد.";
+      return;
+    }
+    const rows = employees.map(e => {
+      const st = iqamaStatus(e.iqama_expiry_date);
+      const expiryCell = e.iqama_expiry_date
+        ? `${e.iqama_expiry_date}${st ? `<div class="iqama-status"><span class="status-badge ${st.cls}">${st.label}</span></div>` : ""}`
+        : "-";
+      return `
+        <tr data-id="${e.id}">
+          <td>${e.full_name}</td>
+          <td>${e.employee_number || "-"}</td>
+          <td>${e.nationality || "-"}</td>
+          <td>${e.job_title || "-"}</td>
+          <td>${e.salary !== null && e.salary !== undefined ? e.salary : "-"}</td>
+          <td>${e.iqama_number || "-"}</td>
+          <td>${expiryCell}</td>
+          <td>
+            <button type="button" class="link-btn edit-employee-btn">تعديل</button>
+            <button type="button" class="link-btn delete-employee-btn" style="color:var(--danger);">حذف</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+    list.innerHTML = `
+      <table class="apps-table">
+        <thead><tr>
+          <th>الاسم</th><th>الرقم الوظيفي</th><th>الجنسية</th><th>المسمى الوظيفي</th>
+          <th>الراتب</th><th>رقم الإقامة</th><th>تاريخ الانتهاء</th><th></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+
+    list.querySelectorAll(".edit-employee-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const id = e.target.closest("tr").dataset.id;
+        openEmployeeForm(employees.find(x => x.id === id));
+      });
+    });
+    list.querySelectorAll(".delete-employee-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        const id = e.target.closest("tr").dataset.id;
+        const emp = employees.find(x => x.id === id);
+        const ok = await showConfirmModal(`هل أنت متأكد من حذف بيانات "${emp.full_name}"؟`, "حذف موظف");
+        if (!ok) return;
+        await apiFetch(`${API_BASE}/employees/${id}`, { method: "DELETE" });
+        await loadEmployees();
+      });
+    });
+  } catch (e) {
+    list.textContent = "تعذّر تحميل بيانات الموظفين.";
+  }
+}
+
+function openEmployeeForm(emp) {
+  const card = document.getElementById("employee-form-card");
+  card.classList.remove("hidden");
+  document.getElementById("employee-form-title").textContent = emp ? "تعديل بيانات موظف" : "إضافة موظف";
+  document.getElementById("employee-form-id").value = emp ? emp.id : "";
+  document.getElementById("employee-name-input").value = emp ? emp.full_name : "";
+  document.getElementById("employee-number-input").value = emp ? emp.employee_number || "" : "";
+  document.getElementById("employee-nationality-input").value = emp ? emp.nationality || "" : "";
+  document.getElementById("employee-jobtitle-input").value = emp ? emp.job_title || "" : "";
+  document.getElementById("employee-phone-input").value = emp ? emp.phone || "" : "";
+  document.getElementById("employee-salary-input").value = emp && emp.salary !== null ? emp.salary : "";
+  document.getElementById("employee-iqama-input").value = emp ? emp.iqama_number || "" : "";
+  document.getElementById("employee-expiry-input").value = emp ? emp.iqama_expiry_date || "" : "";
+  document.getElementById("employee-form-status").textContent = "";
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+document.getElementById("add-employee-btn").addEventListener("click", () => openEmployeeForm(null));
+document.getElementById("cancel-employee-btn").addEventListener("click", () => {
+  document.getElementById("employee-form-card").classList.add("hidden");
+});
+
+document.getElementById("save-employee-btn").addEventListener("click", async () => {
+  const statusEl = document.getElementById("employee-form-status");
+  const id = document.getElementById("employee-form-id").value;
+  const full_name = document.getElementById("employee-name-input").value.trim();
+  if (full_name.length < 2) {
+    statusEl.textContent = "اكتب اسمًا صحيحًا.";
+    statusEl.className = "hint error";
+    return;
+  }
+
+  const salaryRaw = document.getElementById("employee-salary-input").value;
+  const payload = {
+    full_name,
+    employee_number: document.getElementById("employee-number-input").value.trim() || null,
+    nationality: document.getElementById("employee-nationality-input").value.trim() || null,
+    job_title: document.getElementById("employee-jobtitle-input").value.trim() || null,
+    phone: document.getElementById("employee-phone-input").value.trim() || null,
+    salary: salaryRaw !== "" ? parseFloat(salaryRaw) : null,
+    iqama_number: document.getElementById("employee-iqama-input").value.trim() || null,
+    iqama_expiry_date: document.getElementById("employee-expiry-input").value || null,
+  };
+
+  statusEl.className = "hint";
+  statusEl.textContent = "جارٍ الحفظ...";
+  try {
+    const res = await apiFetch(
+      id ? `${API_BASE}/employees/${id}` : `${API_BASE}/employees`,
+      {
+        method: id ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "تعذّر الحفظ.");
+    document.getElementById("employee-form-card").classList.add("hidden");
+    await loadEmployees();
+  } catch (e) {
+    statusEl.textContent = "خطأ: " + e.message;
+    statusEl.className = "hint error";
+  }
+});
+
+document.getElementById("import-excel-btn").addEventListener("click", () => {
+  document.getElementById("import-excel-input").click();
+});
+
+document.getElementById("import-excel-input").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById("import-status");
+  statusEl.className = "hint";
+  statusEl.innerHTML = '<span class="spinner"></span>جارٍ الاستيراد...';
+
+  const formData = new FormData();
+  formData.append("file", file);
+  try {
+    const res = await apiFetch(`${API_BASE}/employees/import`, { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "تعذّر الاستيراد.");
+    let msg = `تم استيراد ${data.imported} موظف بنجاح.`;
+    if (data.errors && data.errors.length) {
+      msg += ` (${data.errors.length} صف تم تجاهله: ` +
+        data.errors.map(err => `الصف ${err.row} — ${err.reason}`).join("، ") + ")";
+    }
+    statusEl.textContent = msg;
+    statusEl.className = data.errors && data.errors.length ? "hint error" : "hint";
+    await loadEmployees();
+  } catch (err) {
+    statusEl.textContent = "خطأ: " + err.message;
+    statusEl.className = "hint error";
+  } finally {
+    e.target.value = "";
+  }
+});
+
+// نظام modal عام يستبدل alert/confirm/prompt المتصفح الافتراضية
+function openModal({ title = "", message = "", showInput = false, inputValue = "", showCancel = true, confirmText = "موافق", cancelText = "إلغاء" }) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById("modal-overlay");
+    const input = document.getElementById("modal-input");
+    const confirmBtn = document.getElementById("modal-confirm-btn");
+    const cancelBtn = document.getElementById("modal-cancel-btn");
+
+    document.getElementById("modal-title").textContent = title;
+    document.getElementById("modal-message").textContent = message;
+    input.classList.toggle("hidden", !showInput);
+    input.value = inputValue;
+    confirmBtn.textContent = confirmText;
+    cancelBtn.textContent = cancelText;
+    cancelBtn.classList.toggle("hidden", !showCancel);
+    overlay.classList.remove("hidden");
+    if (showInput) input.focus();
+
+    function cleanup() {
+      overlay.classList.add("hidden");
+      confirmBtn.removeEventListener("click", onConfirm);
+      cancelBtn.removeEventListener("click", onCancel);
+    }
+    function onConfirm() {
+      const value = showInput ? input.value : true;
+      cleanup();
+      resolve(value);
+    }
+    function onCancel() {
+      cleanup();
+      resolve(showInput ? null : false);
+    }
+    confirmBtn.addEventListener("click", onConfirm);
+    cancelBtn.addEventListener("click", onCancel);
+  });
+}
+
+function showAlertModal(message, title = "تنبيه") {
+  return openModal({ title, message, showInput: false, showCancel: false, confirmText: "حسنًا" });
+}
+function showConfirmModal(message, title = "تأكيد") {
+  return openModal({ title, message, showInput: false, showCancel: true, confirmText: "تأكيد", cancelText: "إلغاء" });
+}
+function showPromptModal(message, defaultValue = "", title = "إدخال") {
+  return openModal({ title, message, showInput: true, inputValue: defaultValue, showCancel: true, confirmText: "موافق", cancelText: "إلغاء" });
+}
+
+function scoreColor(pct) {
+  if (pct >= 75) return "var(--good)";
+  if (pct >= 50) return "var(--warn)";
+  return "var(--danger)";
+}
+
+async function loadDomains() {
+  const select = document.getElementById("domain");
+  try {
+    const res = await apiFetch(`${API_BASE}/domains`);
+    const data = await res.json();
+    const domains = data.domains || [];
+
+    const labeled = await Promise.all(domains.map(async d => {
+      try {
+        const cRes = await apiFetch(`${API_BASE}/criteria/${d}`);
+        const cData = await cRes.json();
+        return { key: d, label: cData.domain_ar || d };
+      } catch {
+        return { key: d, label: d };
+      }
+    }));
+
+    select.innerHTML = "";
+    labeled.forEach(({ key, label }) => {
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = label;
+      select.appendChild(opt);
+    });
+  } catch (e) {
+    select.innerHTML = '<option value="">تعذّر تحميل المجالات</option>';
+  }
+}
+
+function renderResult(result) {
+  document.getElementById("result-card").classList.remove("hidden");
+
+  const pct = Math.round(result.overall_score);
+  const gauge = document.getElementById("gauge");
+  gauge.style.setProperty("--pct", pct);
+  gauge.style.setProperty("--gauge-color", scoreColor(pct));
+  document.getElementById("gauge-value").textContent = pct;
+
+  document.getElementById("result-title").textContent =
+    `${result.job_title} — ${result.domain}`;
+  document.getElementById("result-rec").textContent = result.recommendation_ar || "";
+
+  const list = document.getElementById("criteria-list");
+  list.innerHTML = "";
+  (result.scores || []).forEach(s => {
+    const div = document.createElement("div");
+    div.className = "criterion";
+    div.innerHTML = `
+      <div class="criterion-top">
+        <span>${s.label_ar} <small style="color:var(--text-muted)">(وزن ${s.weight}%)</small></span>
+        <span>${Math.round(s.score)}/100</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${s.score}%; background:${scoreColor(s.score)}"></div></div>
+      <div class="justification">${s.justification_ar || ""}</div>
+    `;
+    list.appendChild(div);
+  });
+
+  const strengths = document.getElementById("strengths-list");
+  strengths.innerHTML = (result.strengths_ar || []).map(t => `<li>${t}</li>`).join("") || "<li>لا يوجد</li>";
+
+  const gaps = document.getElementById("gaps-list");
+  gaps.innerHTML = (result.gaps_ar || []).map(t => `<li>${t}</li>`).join("") || "<li>لا يوجد</li>";
+
+  document.getElementById("disclaimer").textContent = result.disclaimer_ar || "";
+
+  document.getElementById("result-card").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+document.getElementById("analyze-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("submit-btn");
+  const status = document.getElementById("status");
+  status.className = "";
+  status.innerHTML = '<span class="spinner"></span>جارٍ التحليل عبر النموذج، قد يستغرق بضع ثوانٍ...';
+  btn.disabled = true;
+
+  const payload = {
+    job_title: document.getElementById("job_title").value.trim(),
+    domain: document.getElementById("domain").value || null,
+    cv_text: document.getElementById("cv_text").value.trim(),
+  };
+
+  try {
+    const res = await apiFetch(`${API_BASE}/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || "حدث خطأ غير متوقع.");
+    }
+    status.textContent = "";
+    renderResult(data);
+  } catch (err) {
+    status.textContent = "خطأ: " + err.message;
+    status.className = "error";
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+loadDomains();
+
+const SAMPLE_CV_AR = `محمد عبدالله الشريف
+محاسب أول — 6 سنوات خبرة
+
+الخبرات العملية:
+- محاسب أول، شركة النخبة التجارية (2021 - الآن)
+  إعداد القوائم المالية الشهرية والسنوية، التسويات البنكية، مراجعة القيود اليومية،
+  الإشراف على فريق من 3 محاسبين، إعداد الإقرارات الضريبية (ضريبة القيمة المضافة).
+- محاسب، مجموعة الفا للصناعات (2018 - 2021)
+  متابعة الحسابات الدائنة والمدينة، جرد المخزون الشهري، إعداد تقارير التدفق النقدي.
+
+المهارات:
+- QuickBooks, SAP FI, Excel المتقدم (Pivot Tables, VLOOKUP)
+- المعايير الدولية لإعداد التقارير المالية (IFRS)
+- إغلاق الحسابات الشهري والسنوي
+- التسويات البنكية وضبط الحسابات
+
+المؤهلات:
+- بكالوريوس محاسبة، جامعة الملك سعود (2018)
+- شهادة SOCPA (زميل الهيئة السعودية للمحاسبين القانونيين) — قيد الإنجاز
+
+اللغات: العربية (اللغة الأم)، الإنجليزية (جيد جدًا)`;
+
+document.getElementById("sample-btn").addEventListener("click", () => {
+  document.getElementById("cv_text").value = SAMPLE_CV_AR;
+  document.getElementById("job_title").value ||= "محاسب أول";
+});
+
+// تبديل مصدر السيرة الذاتية (نص / ملف / رابط)
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    const source = btn.dataset.source;
+    document.querySelectorAll(".source-panel").forEach(panel => {
+      panel.classList.toggle("active", panel.dataset.panel === source);
+    });
+  });
+});
+
+function setHint(id, message, isError) {
+  const el = document.getElementById(id);
+  el.textContent = message;
+  el.className = "hint" + (isError ? " error" : "");
+}
+
+document.getElementById("extract-file-btn").addEventListener("click", async () => {
+  const fileInput = document.getElementById("cv_file");
+  const file = fileInput.files[0];
+  if (!file) {
+    setHint("file-status", "اختر ملفًا أولاً.", true);
+    return;
+  }
+  setHint("file-status", "جارٍ استخراج النص...", false);
+  const formData = new FormData();
+  formData.append("file", file);
+  try {
+    const res = await apiFetch(`${API_BASE}/extract/file`, { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "تعذّر استخراج النص.");
+    document.getElementById("cv_text").value = data.text;
+    setHint("file-status", "تم استخراج النص بنجاح — راجعه أدناه قبل التحليل.", false);
+  } catch (err) {
+    setHint("file-status", "خطأ: " + err.message, true);
+  }
+});
+
+document.getElementById("extract-url-btn").addEventListener("click", async () => {
+  const url = document.getElementById("cv_url").value.trim();
+  if (!url) {
+    setHint("url-status", "أدخل رابطًا أولاً.", true);
+    return;
+  }
+  setHint("url-status", "جارٍ استخراج النص من الرابط...", false);
+  try {
+    const res = await apiFetch(`${API_BASE}/extract/url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "تعذّر استخراج النص.");
+    document.getElementById("cv_text").value = data.text;
+    setHint("url-status", "تم استخراج النص بنجاح — راجعه أدناه قبل التحليل.", false);
+  } catch (err) {
+    setHint("url-status", "خطأ: " + err.message, true);
+  }
+});
+
+// قسم الطلبات الواردة من صفحة التقديم الخارجية
+document.getElementById("apply-link").textContent = `${location.origin}/apply`;
+
+function scorePillHtml(score) {
+  if (score === null || score === undefined) {
+    return '<span class="score-pill" style="background:var(--text-muted);">بلا تقييم</span>';
+  }
+  const pct = Math.round(score);
+  return `<span class="score-pill" style="background:${scoreColor(pct)};">${pct}</span>`;
+}
+
+async function loadApplications() {
+  const list = document.getElementById("applications-list");
+  list.textContent = "جارٍ التحميل...";
+  try {
+    const res = await apiFetch(`${API_BASE}/applications`);
+    const apps = await res.json();
+    if (!apps.length) {
+      list.textContent = "لا توجد طلبات واردة بعد.";
+      return;
+    }
+    const rows = apps.map(a => `
+      <tr data-id="${a.id}">
+        <td>${a.full_name}</td>
+        <td>${a.job_title}</td>
+        <td>${a.domain || "-"}</td>
+        <td>${scorePillHtml(a.overall_score)}</td>
+        <td><span class="status-badge ${a.status || "pending"}">${statusLabels[a.status] || a.status || "pending"}</span></td>
+        <td>${new Date(a.submitted_at).toLocaleString("ar")}</td>
+        <td><button type="button" class="link-btn view-app-btn">عرض التفاصيل</button></td>
+      </tr>
+    `).join("");
+    list.innerHTML = `
+      <table class="apps-table">
+        <thead><tr>
+          <th>الاسم</th><th>المسمى الوظيفي</th><th>المجال</th><th>الدرجة</th><th>الحالة</th><th>التاريخ</th><th></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+    list.querySelectorAll(".view-app-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const id = e.target.closest("tr").dataset.id;
+        showApplicationDetail(id);
+      });
+    });
+  } catch (e) {
+    list.textContent = "تعذّر تحميل الطلبات.";
+  }
+}
+
+const statusLabels = { pending: "قيد المراجعة", approved: "تمت الموافقة", rejected: "تم الاعتذار" };
+let currentAppId = null;
+
+async function showApplicationDetail(id) {
+  currentAppId = id;
+  const body = document.getElementById("app-detail-body");
+  body.textContent = "جارٍ التحميل...";
+  document.getElementById("applications-card").classList.add("hidden");
+  document.getElementById("app-detail-card").classList.remove("hidden");
+  await reloadApplicationDetail();
+}
+
+async function reloadApplicationDetail() {
+  const body = document.getElementById("app-detail-body");
+  try {
+    const res = await apiFetch(`${API_BASE}/applications/${currentAppId}`);
+    const app = await res.json();
+    if (!res.ok) throw new Error(app.detail || "تعذّر تحميل الطلب.");
+
+    const status = app.status || "pending";
+    const decisionLabels = { accepted: "تم القبول النهائي", rejected: "تم الرفض النهائي" };
+    let html = `
+      <div class="field-header">
+        <h2 style="margin:0;">${app.full_name}</h2>
+        <div style="display:flex; gap:8px;">
+          <span class="status-badge ${status}">${statusLabels[status] || status}</span>
+          ${app.hiring_decision ? `<span class="status-badge ${app.hiring_decision}">${decisionLabels[app.hiring_decision]}</span>` : ""}
+        </div>
+      </div>
+      <p class="hint" style="margin-bottom:16px;">
+        ${app.email}${app.phone ? " · " + app.phone : ""} · ${app.job_title}
+      </p>
+    `;
+
+    if (app.analysis_error) {
+      html += `<div class="hint error">تعذّر التحليل الآلي لهذا الطلب: ${app.analysis_error}</div>
+        <div style="margin-top:14px; white-space:pre-wrap; font-size:0.88rem;">${app.cv_text}</div>`;
+    }
+
+    body.innerHTML = html;
+    if (app.result) {
+      renderApplicationResult(app.result, body);
+    }
+
+    renderInterviewSection(app, body);
+    renderQuestionsSection(app, body);
+    renderVoiceInterviewSection(app, body);
+    renderWrittenTestSection(app, body);
+    renderRecommendationSection(app, body);
+    renderDecisionSection(app, body);
+  } catch (e) {
+    body.textContent = "خطأ: " + e.message;
+  }
+}
+
+function renderWrittenTestSection(app, container) {
+  const section = document.createElement("div");
+  section.className = "subsection";
+  const questions = app.questions || [];
+  const result = app.written_test_result;
+  const resultByQid = {};
+  if (result) result.answers.forEach(a => { resultByQid[a.question_id] = a; });
+
+  if (!questions.length) {
+    section.innerHTML = `
+      <h3>الاختبار الورقي</h3>
+      <p class="hint">ولّد أسئلة أولاً (أعلاه) قبل تسجيل إجابات اختبار ورقي.</p>
+    `;
+    container.appendChild(section);
+    return;
+  }
+
+  const rows = questions.map(q => {
+    const r = resultByQid[q.id];
+    if (q.type === "mcq") {
+      const optionsHtml = (q.options || []).map((o, i) => `
+        <label>
+          <input type="radio" name="wt-${q.id}" value="${o}" ${r && r.candidate_answer === o ? "checked" : ""}>
+          ${o}
+        </label>
+      `).join("");
+      const resultHtml = r ? `
+        <div class="wt-result-row" style="margin-top:8px;">
+          <span class="wt-score ${r.is_correct ? "correct" : "incorrect"}">${r.is_correct ? "✔ صحيحة" : "✘ خاطئة"}</span>
+          <span class="hint">الإجابة الصحيحة: ${r.correct_answer}</span>
+        </div>
+      ` : "";
+      return `
+        <div class="wt-question" data-qid="${q.id}" data-type="mcq">
+          <div class="wt-q-text">${q.text}</div>
+          <div class="wt-options">${optionsHtml}</div>
+          ${resultHtml}
+        </div>
+      `;
+    }
+    const resultHtml = r && r.score !== null ? `
+      <div class="wt-result-row" style="margin-top:8px;">
+        <span class="wt-score">${Math.round(r.score)}/100</span>
+      </div>
+      <div class="justification">${r.justification_ar || ""}</div>
+    ` : "";
+    return `
+      <div class="wt-question" data-qid="${q.id}" data-type="open">
+        <div class="wt-q-text">${q.text}</div>
+        <textarea class="wt-open-answer" placeholder="اكتب إجابة المرشح الورقية هنا...">${r ? r.candidate_answer : ""}</textarea>
+        ${resultHtml}
+      </div>
+    `;
+  }).join("");
+
+  section.innerHTML = `
+    <h3>الاختبار الورقي</h3>
+    <p class="hint">سجّل إجابات المرشح كما كتبها على الورق، ثم صحّح الاختبار (MCQ آليًا فورًا، والأسئلة المفتوحة بالذكاء الاصطناعي).</p>
+    ${rows}
+    ${result ? `<p style="margin-top:14px; font-weight:600;">الدرجة الإجمالية: ${result.overall_score}/100</p>` : ""}
+    <button type="button" id="score-written-btn" style="margin-top:10px;">تصحيح الاختبار</button>
+    <div id="written-test-status" class="hint"></div>
+  `;
+  container.appendChild(section);
+
+  section.querySelector("#score-written-btn").addEventListener("click", async () => {
+    const answers = [];
+    section.querySelectorAll(".wt-question").forEach(qEl => {
+      const qid = qEl.dataset.qid;
+      if (qEl.dataset.type === "mcq") {
+        const checked = qEl.querySelector(`input[name="wt-${qid}"]:checked`);
+        if (checked) answers.push({ question_id: qid, answer_text: checked.value });
+      } else {
+        const text = qEl.querySelector(".wt-open-answer").value.trim();
+        if (text) answers.push({ question_id: qid, answer_text: text });
+      }
+    });
+
+    if (!answers.length) {
+      await showAlertModal("سجّل إجابة واحدة على الأقل قبل التصحيح.");
+      return;
+    }
+
+    const statusEl = section.querySelector("#written-test-status");
+    statusEl.className = "hint";
+    statusEl.innerHTML = '<span class="spinner"></span>جارٍ التصحيح...';
+
+    try {
+      const res = await apiFetch(`${API_BASE}/applications/${currentAppId}/written-test/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "تعذّر التصحيح.");
+      await reloadApplicationDetail();
+    } catch (e) {
+      statusEl.textContent = "خطأ: " + e.message;
+      statusEl.classList.add("error");
+    }
+  });
+}
+
+function renderRecommendationSection(app, container) {
+  const section = document.createElement("div");
+  section.className = "subsection";
+  const rec = app.final_recommendation;
+
+  section.innerHTML = `
+    <h3>التوصية النهائية (استرشادية)</h3>
+    <button type="button" id="generate-rec-btn">توليد التوصية النهائية</button>
+    <div id="rec-status" class="hint"></div>
+    <div id="rec-body" style="margin-top:14px;">
+      ${rec ? recommendationHtml(rec) : '<p class="hint">لم تُولّد توصية بعد.</p>'}
+    </div>
+  `;
+  container.appendChild(section);
+
+  section.querySelector("#generate-rec-btn").addEventListener("click", async () => {
+    const statusEl = section.querySelector("#rec-status");
+    statusEl.className = "hint";
+    statusEl.innerHTML = '<span class="spinner"></span>جارٍ توليد التوصية...';
+    try {
+      const res = await apiFetch(`${API_BASE}/applications/${currentAppId}/recommendation/generate`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "تعذّر توليد التوصية.");
+      await reloadApplicationDetail();
+    } catch (e) {
+      statusEl.textContent = "خطأ: " + e.message;
+      statusEl.classList.add("error");
+    }
+  });
+}
+
+function recommendationHtml(rec) {
+  const badge = rec.recommend
+    ? '<span class="status-badge accepted">يُرشَّح ✔</span>'
+    : '<span class="status-badge rejected">لا يُرشَّح ✘</span>';
+  return `
+    ${badge}
+    <p style="margin-top:10px;">${rec.reason_ar}</p>
+    <div class="cols" style="margin-top:10px;">
+      <div class="strengths"><h3>نقاط القوة</h3><ul>${(rec.strengths_ar || []).map(t => `<li>${t}</li>`).join("") || "<li>لا يوجد</li>"}</ul></div>
+      <div class="gaps"><h3>نقاط الضعف</h3><ul>${(rec.weaknesses_ar || []).map(t => `<li>${t}</li>`).join("") || "<li>لا يوجد</li>"}</ul></div>
+    </div>
+  `;
+}
+
+function renderDecisionSection(app, container) {
+  const section = document.createElement("div");
+  section.className = "subsection";
+
+  section.innerHTML = `
+    <h3>القرار النهائي</h3>
+    <p class="hint">هذا القرار يُرسل للمرشح عند تحققه من حالة طلبه (مع ملاحظات نقاط القوة/الضعف من التوصية أعلاه).</p>
+    <div class="decision-actions">
+      <button type="button" class="accept-btn" id="accept-btn">✔ قبول المرشح نهائيًا</button>
+      <button type="button" class="reject-btn" id="reject-final-btn">✘ رفض المرشح نهائيًا</button>
+    </div>
+    <div id="decision-status" class="hint"></div>
+  `;
+  container.appendChild(section);
+
+  async function sendDecision(decision) {
+    const statusEl = section.querySelector("#decision-status");
+    const feedback = await showPromptModal("ملاحظات إضافية للمرشح (اختياري — اتركها فارغة لاستخدام التوصية تلقائيًا):", "", "ملاحظات القرار");
+    if (feedback === null) return;
+
+    statusEl.className = "hint";
+    statusEl.textContent = "جارٍ الحفظ...";
+    try {
+      const res = await apiFetch(`${API_BASE}/applications/${currentAppId}/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision, feedback_ar: feedback || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "تعذّر حفظ القرار.");
+      await reloadApplicationDetail();
+      loadApplications();
+    } catch (e) {
+      statusEl.textContent = "خطأ: " + e.message;
+      statusEl.classList.add("error");
+    }
+  }
+
+  section.querySelector("#accept-btn").addEventListener("click", () => sendDecision("accepted"));
+  section.querySelector("#reject-final-btn").addEventListener("click", () => sendDecision("rejected"));
+}
+
+function renderVoiceInterviewSection(app, container) {
+  const section = document.createElement("div");
+  section.className = "subsection";
+
+  const vr = app.voice_interview_result;
+  const transcript = app.voice_transcript || [];
+
+  if (!vr && !transcript.length) {
+    section.innerHTML = `
+      <h3>المقابلة الصوتية</h3>
+      <p class="hint">لم يبدأ المرشح المقابلة الصوتية بعد. تتوفر له تلقائيًا في صفحة "التحقق من حالة الطلب" بعد الموافقة وحلول الموعد.</p>
+    `;
+    container.appendChild(section);
+    return;
+  }
+
+  const scoresHtml = vr
+    ? vr.scores.map(s => `
+        <div class="criterion">
+          <div class="criterion-top">
+            <span>${s.label_ar}</span>
+            <span>${Math.round(s.score)}/100</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:${s.score}%; background:${scoreColor(s.score)}"></div></div>
+          <div class="justification">${s.justification_ar || ""}</div>
+        </div>
+      `).join("")
+    : '<p class="hint">لم تُحسب نتيجة التقييم بعد.</p>';
+
+  const transcriptHtml = transcript.length
+    ? transcript.map(t => `
+        <div class="question-item">
+          <div class="q-body">
+            <div class="q-text"><strong>س:</strong> ${t.question}</div>
+            <div class="justification"><strong>ج:</strong> ${t.answer}</div>
+          </div>
+        </div>
+      `).join("")
+    : "";
+
+  section.innerHTML = `
+    <h3>نتيجة المقابلة الصوتية</h3>
+    ${vr ? `<p class="hint" style="margin-bottom:14px;">${vr.overall_summary_ar}</p>${scoresHtml}` : '<p class="hint">المرشح أجاب لكن التقييم النهائي لم يُحسب بعد.</p>'}
+    <details style="margin-top:16px;">
+      <summary class="hint" style="cursor:pointer;">عرض نص المحادثة الكامل (${transcript.length} إجابة)</summary>
+      <div style="margin-top:10px;">${transcriptHtml}</div>
+    </details>
+  `;
+  container.appendChild(section);
+}
+
+function renderInterviewSection(app, container) {
+  const section = document.createElement("div");
+  section.className = "subsection";
+  const dtValue = app.interview_datetime ? app.interview_datetime.slice(0, 16) : "";
+  section.innerHTML = `
+    <h3>المقابلة</h3>
+    ${app.interview_datetime ? `<p class="hint">الموعد الحالي: ${new Date(app.interview_datetime).toLocaleString("ar")}</p>` : ""}
+    ${app.note_ar ? `<p class="hint">ملاحظة: ${app.note_ar}</p>` : ""}
+    <div class="interview-actions">
+      <button type="button" class="secondary" id="toggle-approve-btn">موافقة وتحديد الموعد</button>
+      <button type="button" class="danger-btn" id="reject-btn">رفض / اعتذار</button>
+    </div>
+    <div class="approve-form" id="approve-form">
+      <input type="datetime-local" id="interview_datetime" value="${dtValue}">
+      <textarea id="interview_note" placeholder="ملاحظة للمرشح (مكان/رابط المقابلة)" rows="2">${app.note_ar || ""}</textarea>
+      <button type="button" id="confirm-approve-btn">تأكيد الموافقة</button>
+    </div>
+    <div id="interview-action-status" class="hint"></div>
+  `;
+  container.appendChild(section);
+
+  const approveForm = section.querySelector("#approve-form");
+  section.querySelector("#toggle-approve-btn").addEventListener("click", () => {
+    approveForm.classList.toggle("active");
+  });
+
+  section.querySelector("#confirm-approve-btn").addEventListener("click", async () => {
+    const dt = section.querySelector("#interview_datetime").value;
+    const note = section.querySelector("#interview_note").value.trim();
+    const statusEl = section.querySelector("#interview-action-status");
+    if (!dt) {
+      statusEl.textContent = "الرجاء تحديد موعد المقابلة.";
+      statusEl.classList.add("error");
+      return;
+    }
+    try {
+      const res = await apiFetch(`${API_BASE}/applications/${currentAppId}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ interview_datetime: dt, note_ar: note || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "تعذّرت الموافقة.");
+      await reloadApplicationDetail();
+      loadApplications();
+    } catch (e) {
+      statusEl.textContent = "خطأ: " + e.message;
+      statusEl.classList.add("error");
+    }
+  });
+
+  section.querySelector("#reject-btn").addEventListener("click", async () => {
+    const note = await showPromptModal("سبب الاعتذار (اختياري):", app.note_ar || "", "رفض المقابلة");
+    if (note === null) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/applications/${currentAppId}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note_ar: note || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "تعذّر الرفض.");
+      await reloadApplicationDetail();
+      loadApplications();
+    } catch (e) {
+      const statusEl = section.querySelector("#interview-action-status");
+      statusEl.textContent = "خطأ: " + e.message;
+      statusEl.classList.add("error");
+    }
+  });
+}
+
+async function printQuestions(app, questions) {
+  if (!questions.length) {
+    await showAlertModal("لا توجد أسئلة لطباعتها بعد.");
+    return;
+  }
+
+  const rows = questions.map((q, i) => {
+    const optionsHtml = q.type === "mcq" && q.options
+      ? `<ol type="a" class="p-options">${q.options.map(o =>
+          `<li${o === q.correct_answer ? ' class="p-correct"' : ""}>${o}</li>`
+        ).join("")}</ol>`
+      : `<div class="p-answer-line"></div><div class="p-answer-line"></div>`;
+
+    return `
+      <div class="p-question">
+        <div class="p-q-head">
+          <span>${i + 1}. ${q.text}</span>
+          <span class="p-tag">${q.type === "mcq" ? "اختيار من متعدد" : "مفتوح"} · ${q.source === "ai" ? "AI" : "HR"}</span>
+        </div>
+        ${optionsHtml}
+      </div>
+    `;
+  }).join("");
+
+  const html = `
+    <!doctype html>
+    <html lang="ar" dir="rtl">
+    <head>
+    <meta charset="UTF-8">
+    <title>أسئلة مقابلة — ${app.full_name}</title>
+    <style>
+      body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; padding: 32px; color: #1c1c1f; }
+      h1 { font-size: 1.3rem; margin-bottom: 4px; }
+      .p-meta { color: #555; margin-bottom: 24px; font-size: 0.95rem; }
+      .p-question { margin-bottom: 22px; page-break-inside: avoid; }
+      .p-q-head { display: flex; justify-content: space-between; gap: 12px; font-weight: 600; }
+      .p-tag { font-weight: 400; font-size: 0.8rem; color: #666; white-space: nowrap; }
+      .p-options { margin: 8px 0 0; padding-inline-start: 24px; }
+      .p-options li.p-correct { font-weight: 700; }
+      .p-answer-line { border-bottom: 1px solid #999; height: 24px; margin-top: 8px; }
+      @media print { body { padding: 12mm; } }
+    </style>
+    </head>
+    <body>
+      <h1>أسئلة المقابلة</h1>
+      <div class="p-meta">${app.full_name} — ${app.job_title}${app.domain ? " · " + app.domain : ""}</div>
+      ${rows}
+    </body>
+    </html>
+  `;
+
+  const win = window.open("", "_blank");
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => win.print();
+}
+
+function questionItemHtml(q) {
+  const typeLabel = q.type === "mcq" ? "اختيار من متعدد" : "مفتوح";
+  const sourceLabel = q.source === "ai" ? "ذكاء اصطناعي" : "HR";
+  const optionsHtml = q.type === "mcq" && q.options
+    ? `<ul class="options-list">${q.options.map(o =>
+        `<li class="${o === q.correct_answer ? "correct-option" : ""}">${o}</li>`
+      ).join("")}</ul>`
+    : "";
+
+  return `
+    <div class="question-item" data-qid="${q.id}">
+      <div class="q-body">
+        <div class="q-text">${q.text}</div>
+        ${optionsHtml}
+        <button type="button" class="edit-question-btn" data-qid="${q.id}">تعديل</button>
+        <button type="button" class="edit-question-btn delete-question-btn" data-qid="${q.id}">حذف</button>
+      </div>
+      <div class="q-tags">
+        <span class="q-tag">${sourceLabel}</span>
+        <span class="q-tag">${typeLabel}</span>
+      </div>
+    </div>
+  `;
+}
+
+function editQuestionFormHtml(q) {
+  const opts = q.options || ["", "", "", ""];
+  const optionsInputs = [0, 1, 2, 3].map(i => `
+    <input type="text" class="edit-option-input" placeholder="خيار ${i + 1}" value="${opts[i] || ""}">
+  `).join("");
+
+  return `
+    <div class="edit-question-form" data-qid="${q.id}">
+      <textarea class="edit-text-input" rows="2">${q.text}</textarea>
+      <label>
+        <input type="checkbox" class="edit-mcq-toggle" ${q.type === "mcq" ? "checked" : ""}>
+        سؤال اختيار من متعدد
+      </label>
+      <div class="edit-options-grid ${q.type === "mcq" ? "active" : ""}" style="${q.type === "mcq" ? "" : "display:none;"}">
+        ${optionsInputs}
+      </div>
+      <input type="text" class="edit-correct-input" placeholder="الإجابة الصحيحة (يجب أن تطابق أحد الخيارات نصياً)" value="${q.correct_answer || ""}" style="${q.type === "mcq" ? "" : "display:none;"}">
+      <div class="edit-actions">
+        <button type="button" class="save-edit-btn">حفظ</button>
+        <button type="button" class="secondary cancel-edit-btn">إلغاء</button>
+      </div>
+      <div class="edit-status hint"></div>
+    </div>
+  `;
+}
+
+function renderQuestionsSection(app, container) {
+  const section = document.createElement("div");
+  section.className = "subsection";
+  const questions = app.questions || [];
+  const questionsHtml = questions.length
+    ? questions.map(questionItemHtml).join("")
+    : '<p class="hint">لا توجد أسئلة بعد.</p>';
+
+  section.innerHTML = `
+    <h3>أسئلة المقابلة</h3>
+    <div class="interview-actions">
+      <button type="button" id="generate-open-btn">توليد أسئلة مقابلة بالذكاء الاصطناعي</button>
+      <button type="button" class="secondary" id="generate-mcq-btn">توليد أسئلة اختيارية (MCQ)</button>
+      <button type="button" class="secondary" id="print-questions-btn">🖨️ طباعة الأسئلة</button>
+    </div>
+    <div id="questions-status" class="hint"></div>
+    <div id="questions-list">${questionsHtml}</div>
+
+    <div class="add-question-row">
+      <input type="text" id="new-question-text" placeholder="أضف سؤال مقابلة يدويًا...">
+      <label><input type="checkbox" id="new-question-mcq-toggle"> اختيار من متعدد</label>
+      <button type="button" id="add-question-btn">إضافة</button>
+    </div>
+    <div class="add-mcq-options" id="add-mcq-options">
+      <input type="text" id="new-opt-0" placeholder="خيار 1">
+      <input type="text" id="new-opt-1" placeholder="خيار 2">
+      <input type="text" id="new-opt-2" placeholder="خيار 3">
+      <input type="text" id="new-opt-3" placeholder="خيار 4">
+      <input type="text" id="new-correct" placeholder="الإجابة الصحيحة (طابق أحد الخيارات)" style="grid-column: span 2;">
+    </div>
+  `;
+  container.appendChild(section);
+
+  async function generate(questionType, btn) {
+    const statusEl = section.querySelector("#questions-status");
+    statusEl.className = "hint";
+    statusEl.innerHTML = '<span class="spinner"></span>جارٍ توليد الأسئلة...';
+    btn.disabled = true;
+    try {
+      const res = await apiFetch(
+        `${API_BASE}/applications/${currentAppId}/questions/generate?question_type=${questionType}`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "تعذّر توليد الأسئلة.");
+      statusEl.textContent = "";
+      await reloadApplicationDetail();
+    } catch (e) {
+      statusEl.textContent = "خطأ: " + e.message;
+      statusEl.classList.add("error");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  section.querySelector("#generate-open-btn").addEventListener("click", (e) => generate("open", e.target));
+  section.querySelector("#generate-mcq-btn").addEventListener("click", (e) => generate("mcq", e.target));
+  section.querySelector("#print-questions-btn").addEventListener("click", () => printQuestions(app, questions));
+
+  section.querySelector("#new-question-mcq-toggle").addEventListener("change", (e) => {
+    section.querySelector("#add-mcq-options").classList.toggle("active", e.target.checked);
+  });
+
+  section.querySelector("#add-question-btn").addEventListener("click", async () => {
+    const text = section.querySelector("#new-question-text").value.trim();
+    if (text.length < 3) return;
+    const isMcq = section.querySelector("#new-question-mcq-toggle").checked;
+    let options = null;
+    let correct_answer = null;
+    if (isMcq) {
+      options = [0, 1, 2, 3]
+        .map(i => section.querySelector(`#new-opt-${i}`).value.trim())
+        .filter(Boolean);
+      correct_answer = section.querySelector("#new-correct").value.trim() || null;
+    }
+    try {
+      const res = await apiFetch(`${API_BASE}/applications/${currentAppId}/questions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, options, correct_answer }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "تعذّرت الإضافة.");
+      await reloadApplicationDetail();
+    } catch (e) {
+      const statusEl = section.querySelector("#questions-status");
+      statusEl.textContent = "خطأ: " + e.message;
+      statusEl.classList.add("error");
+    }
+  });
+
+  function openEditForm(qid) {
+    const q = questions.find(x => x.id === qid);
+    const itemEl = section.querySelector(`.question-item[data-qid="${qid}"]`);
+    const formWrap = document.createElement("div");
+    formWrap.innerHTML = editQuestionFormHtml(q);
+    const form = formWrap.firstElementChild;
+    itemEl.replaceWith(form);
+
+    const optionsGrid = form.querySelector(".edit-options-grid");
+    const correctInput = form.querySelector(".edit-correct-input");
+    form.querySelector(".edit-mcq-toggle").addEventListener("change", (e) => {
+      const show = e.target.checked;
+      optionsGrid.style.display = show ? "grid" : "none";
+      correctInput.style.display = show ? "block" : "none";
+    });
+
+    form.querySelector(".cancel-edit-btn").addEventListener("click", () => {
+      const restored = document.createElement("div");
+      restored.innerHTML = questionItemHtml(q);
+      const restoredItem = restored.firstElementChild;
+      form.replaceWith(restoredItem);
+      restoredItem.querySelector(".edit-question-btn").addEventListener("click", () => openEditForm(qid));
+    });
+
+    form.querySelector(".save-edit-btn").addEventListener("click", async () => {
+      const statusEl = form.querySelector(".edit-status");
+      const isMcq = form.querySelector(".edit-mcq-toggle").checked;
+      const text = form.querySelector(".edit-text-input").value.trim();
+      let options = null;
+      let correct_answer = null;
+      if (isMcq) {
+        options = Array.from(form.querySelectorAll(".edit-option-input"))
+          .map(i => i.value.trim())
+          .filter(Boolean);
+        correct_answer = form.querySelector(".edit-correct-input").value.trim() || null;
+      }
+      try {
+        const res = await apiFetch(`${API_BASE}/applications/${currentAppId}/questions/${qid}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, options, correct_answer }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "تعذّر الحفظ.");
+        await reloadApplicationDetail();
+      } catch (e) {
+        statusEl.textContent = "خطأ: " + e.message;
+        statusEl.classList.add("error");
+      }
+    });
+  }
+
+  section.querySelectorAll(".edit-question-btn:not(.delete-question-btn)").forEach(btn => {
+    btn.addEventListener("click", () => openEditForm(btn.dataset.qid));
+  });
+
+  section.querySelectorAll(".delete-question-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const qid = btn.dataset.qid;
+      const q = questions.find(x => x.id === qid);
+      const ok = await showConfirmModal(`هل أنت متأكد من حذف هذا السؤال؟\n"${q.text}"`, "حذف سؤال");
+      if (!ok) return;
+
+      const statusEl = section.querySelector("#questions-status");
+      try {
+        const res = await apiFetch(`${API_BASE}/applications/${currentAppId}/questions/${qid}`, {
+          method: "DELETE",
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "تعذّر الحذف.");
+        await reloadApplicationDetail();
+      } catch (e) {
+        statusEl.textContent = "خطأ: " + e.message;
+        statusEl.classList.add("error");
+      }
+    });
+  });
+}
+
+function renderApplicationResult(result, container) {
+  const pct = Math.round(result.overall_score);
+  const wrap = document.createElement("div");
+  wrap.innerHTML = `
+    <div class="score-header">
+      <div class="gauge" style="--pct:${pct}; --gauge-color:${scoreColor(pct)};"><span>${pct}</span></div>
+      <div class="score-meta">
+        <div class="rec">${result.recommendation_ar}</div>
+      </div>
+    </div>
+    <div class="criteria-list-detail" style="margin-top:20px;"></div>
+    <div class="cols">
+      <div class="strengths"><h3>نقاط القوة</h3><ul>${(result.strengths_ar || []).map(t => `<li>${t}</li>`).join("") || "<li>لا يوجد</li>"}</ul></div>
+      <div class="gaps"><h3>الفجوات</h3><ul>${(result.gaps_ar || []).map(t => `<li>${t}</li>`).join("") || "<li>لا يوجد</li>"}</ul></div>
+    </div>
+    <div class="disclaimer">${result.disclaimer_ar}</div>
+  `;
+  const criteriaList = wrap.querySelector(".criteria-list-detail");
+  (result.scores || []).forEach(s => {
+    const div = document.createElement("div");
+    div.className = "criterion";
+    div.innerHTML = `
+      <div class="criterion-top">
+        <span>${s.label_ar} <small style="color:var(--text-muted)">(وزن ${s.weight}%)</small></span>
+        <span>${Math.round(s.score)}/100</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${s.score}%; background:${scoreColor(s.score)}"></div></div>
+      <div class="justification">${s.justification_ar || ""}</div>
+    `;
+    criteriaList.appendChild(div);
+  });
+  container.appendChild(wrap);
+}
+
+document.getElementById("refresh-apps-btn").addEventListener("click", loadApplications);
+document.getElementById("close-detail-btn").addEventListener("click", () => {
+  document.getElementById("app-detail-card").classList.add("hidden");
+  document.getElementById("applications-card").classList.remove("hidden");
+});
+
+loadOverview();
+</script>
+</body>
+</html>

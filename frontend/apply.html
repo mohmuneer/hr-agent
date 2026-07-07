@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>التقديم على وظيفة</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --surface: #ffffff;
+    --border: #e5e5e8;
+    --text: #1c1c1f;
+    --text-muted: #6b6b73;
+    --primary: #2f6f4f;
+    --primary-dark: #1f5138;
+    --danger: #b3432b;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17181a;
+      --surface: #212226;
+      --border: #33343a;
+      --text: #ececef;
+      --text-muted: #9a9aa2;
+      --primary: #4caf7d;
+      --primary-dark: #3a8b62;
+      --danger: #e0715a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header { padding: 32px 24px 20px; text-align: center; }
+  header h1 { margin: 0 0 6px; font-size: 1.5rem; }
+  header p { margin: 0; color: var(--text-muted); font-size: 0.95rem; }
+
+  main { max-width: 560px; margin: 0 auto; padding: 8px 16px 64px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+  label { display: block; font-size: 0.9rem; margin-bottom: 6px; color: var(--text-muted); }
+  input[type=text], input[type=email], input[type=tel], select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.95rem;
+  }
+  .field { margin-bottom: 16px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 520px) { .row { grid-template-columns: 1fr; } }
+
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    text-align: center;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+  .dropzone.has-file { border-color: var(--primary); color: var(--text); }
+  .dropzone input { display: none; }
+
+  button {
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    padding: 12px 22px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    font-weight: 600;
+    width: 100%;
+  }
+  button:hover { background: var(--primary-dark); }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  #status, #status-check-status { margin-top: 14px; font-size: 0.9rem; color: var(--text-muted); text-align: center; }
+  #status.error, #status-check-status.error { color: var(--danger); }
+  #status.success { color: var(--primary); font-weight: 600; }
+  .hint { font-size: 0.9rem; color: var(--text-muted); }
+
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid var(--border); border-top-color: var(--primary);
+    border-radius: 50%; animation: spin 0.8s linear infinite; margin-inline-end: 8px; vertical-align: -2px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .success-card { text-align: center; padding: 40px 24px; }
+  .success-card .icon { font-size: 2.5rem; margin-bottom: 12px; }
+  .success-card .app-id { margin-top: 14px; font-size: 0.85rem; color: var(--text-muted); }
+  .success-card .app-id code { -webkit-user-select: all; user-select: all; background: var(--bg); padding: 2px 8px; border-radius: 4px; }
+  .hidden { display: none; }
+
+  .mode-tabs { display: flex; gap: 8px; max-width: 560px; margin: 0 auto 16px; padding: 0 16px; }
+  .mode-tabs button {
+    flex: 1; background: var(--surface); color: var(--text-muted);
+    border: 1px solid var(--border); font-weight: 500;
+  }
+  .mode-tabs button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  .status-badge { display: inline-block; padding: 4px 14px; border-radius: 999px; font-weight: 600; font-size: 0.85rem; }
+  .status-badge.pending { background: #b58900; color: #fff; }
+  .status-badge.approved, .status-badge.accepted { background: var(--primary); color: #fff; }
+  .status-badge.rejected { background: var(--danger); color: #fff; }
+  .status-result { text-align: center; padding: 20px 8px; }
+  .status-result .detail-row { margin-top: 12px; color: var(--text-muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>التقديم على وظيفة</h1>
+  <p>عبّئ البيانات التالية وارفع سيرتك الذاتية — سيقوم فريق التوظيف بمراجعة طلبك</p>
+</header>
+
+<div class="mode-tabs">
+  <button type="button" class="active" data-mode="apply">تقديم جديد</button>
+  <button type="button" data-mode="status">التحقق من حالة طلب</button>
+</div>
+
+<main>
+  <form class="card" id="apply-form">
+    <div class="row">
+      <div class="field">
+        <label for="full_name">الاسم الكامل</label>
+        <input type="text" id="full_name" required>
+      </div>
+      <div class="field">
+        <label for="email">البريد الإلكتروني</label>
+        <input type="email" id="email" required>
+      </div>
+    </div>
+    <div class="field">
+      <label for="job_select">اختر من الوظائف المتاحة (اختياري)</label>
+      <select id="job_select">
+        <option value="">-- اكتب المسمى الوظيفي يدويًا أدناه --</option>
+      </select>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="phone">رقم الجوال (اختياري)</label>
+        <input type="tel" id="phone">
+      </div>
+      <div class="field">
+        <label for="job_title">المسمى الوظيفي المتقدم له</label>
+        <input type="text" id="job_title" placeholder="مثال: محاسب أول" required>
+      </div>
+    </div>
+    <div class="field">
+      <label for="domain">المجال</label>
+      <select id="domain"></select>
+    </div>
+    <div class="field">
+      <label>السيرة الذاتية (PDF, DOCX, TXT)</label>
+      <div class="dropzone" id="dropzone">
+        <span id="dropzone-label">اضغط هنا لاختيار ملف السيرة الذاتية، أو اسحبه وأفلته</span>
+        <input type="file" id="cv_file" accept=".pdf,.docx,.txt,.md" required>
+      </div>
+    </div>
+    <button type="submit" id="submit-btn">إرسال الطلب</button>
+    <div id="status"></div>
+  </form>
+
+  <section class="card success-card hidden" id="success-card">
+    <div class="icon">✅</div>
+    <h2>تم استلام طلبك بنجاح</h2>
+    <p id="success-message" class="hint"></p>
+    <p class="app-id">رقم طلبك المرجعي (احتفظ به لمتابعة الحالة لاحقًا):<br><code id="success-app-id"></code></p>
+  </section>
+
+  <form class="card hidden" id="status-form">
+    <div class="field">
+      <label for="status_id">رقم الطلب المرجعي</label>
+      <input type="text" id="status_id" required>
+    </div>
+    <div class="field">
+      <label for="status_email">البريد الإلكتروني المستخدم في التقديم</label>
+      <input type="email" id="status_email" required>
+    </div>
+    <button type="submit">تحقق من الحالة</button>
+    <div id="status-check-status"></div>
+  </form>
+
+  <section class="card status-result hidden" id="status-result-card"></section>
+</main>
+
+<script>
+const API_BASE = "/api/v1";
+
+async function loadDomains() {
+  const select = document.getElementById("domain");
+  try {
+    const res = await fetch(`${API_BASE}/domains`);
+    const data = await res.json();
+    const domains = data.domains || [];
+    const labeled = await Promise.all(domains.map(async d => {
+      try {
+        const cRes = await fetch(`${API_BASE}/criteria/${d}`);
+        const cData = await cRes.json();
+        return { key: d, label: cData.domain_ar || d };
+      } catch {
+        return { key: d, label: d };
+      }
+    }));
+    select.innerHTML = "";
+    labeled.forEach(({ key, label }) => {
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = label;
+      select.appendChild(opt);
+    });
+  } catch (e) {
+    select.innerHTML = '<option value="">تعذّر تحميل المجالات</option>';
+  }
+}
+
+let openJobs = [];
+
+async function loadOpenJobs() {
+  const select = document.getElementById("job_select");
+  try {
+    const res = await fetch(`${API_BASE}/jobs?status=open`);
+    openJobs = await res.json();
+    if (!openJobs.length) return;
+    openJobs.forEach(j => {
+      const opt = document.createElement("option");
+      opt.value = j.id;
+      opt.textContent = j.location ? `${j.title} — ${j.location}` : j.title;
+      select.appendChild(opt);
+    });
+  } catch (e) {
+    // فشل تحميل الوظائف لا يمنع التقديم اليدوي
+  }
+}
+
+document.getElementById("job_select").addEventListener("change", (e) => {
+  const job = openJobs.find(j => j.id === e.target.value);
+  if (!job) return;
+  document.getElementById("job_title").value = job.title;
+  if (job.domain) document.getElementById("domain").value = job.domain;
+});
+
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("cv_file");
+const dropzoneLabel = document.getElementById("dropzone-label");
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("dragover", e => { e.preventDefault(); dropzone.classList.add("has-file"); });
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("has-file"));
+dropzone.addEventListener("drop", e => {
+  e.preventDefault();
+  if (e.dataTransfer.files.length) {
+    fileInput.files = e.dataTransfer.files;
+    updateDropzoneLabel();
+  }
+});
+fileInput.addEventListener("change", updateDropzoneLabel);
+
+function updateDropzoneLabel() {
+  const file = fileInput.files[0];
+  if (file) {
+    dropzoneLabel.textContent = `📄 ${file.name}`;
+    dropzone.classList.add("has-file");
+  } else {
+    dropzoneLabel.textContent = "اضغط هنا لاختيار ملف السيرة الذاتية، أو اسحبه وأفلته";
+    dropzone.classList.remove("has-file");
+  }
+}
+
+document.getElementById("apply-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("submit-btn");
+  const status = document.getElementById("status");
+  status.className = "";
+  status.innerHTML = '<span class="spinner"></span>جارٍ إرسال طلبك...';
+  btn.disabled = true;
+
+  const formData = new FormData();
+  formData.append("full_name", document.getElementById("full_name").value.trim());
+  formData.append("email", document.getElementById("email").value.trim());
+  formData.append("phone", document.getElementById("phone").value.trim());
+  formData.append("job_title", document.getElementById("job_title").value.trim());
+  formData.append("domain", document.getElementById("domain").value || "");
+  formData.append("file", fileInput.files[0]);
+
+  try {
+    const res = await fetch(`${API_BASE}/apply`, { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "حدث خطأ غير متوقع.");
+
+    document.getElementById("apply-form").classList.add("hidden");
+    document.getElementById("success-card").classList.remove("hidden");
+    document.getElementById("success-message").textContent = data.message_ar;
+    document.getElementById("success-app-id").textContent = data.id;
+  } catch (err) {
+    status.textContent = "خطأ: " + err.message;
+    status.className = "error";
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// التبديل بين وضع "تقديم جديد" و"التحقق من حالة طلب"
+document.querySelectorAll(".mode-tabs button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".mode-tabs button").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    const mode = btn.dataset.mode;
+
+    document.getElementById("apply-form").classList.toggle("hidden", mode !== "apply");
+    document.getElementById("success-card").classList.add("hidden");
+    document.getElementById("status-form").classList.toggle("hidden", mode !== "status");
+    document.getElementById("status-result-card").classList.add("hidden");
+  });
+});
+
+const statusBadges = {
+  pending: "قيد المراجعة",
+  approved: "تمت الموافقة",
+  rejected: "تم الاعتذار",
+};
+
+const decisionBadges = {
+  accepted: "تم قبولك للوظيفة",
+  rejected: "تم الاعتذار عن طلبك",
+};
+
+document.getElementById("status-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const status = document.getElementById("status-check-status");
+  const resultCard = document.getElementById("status-result-card");
+  status.className = "";
+  status.innerHTML = '<span class="spinner"></span>جارٍ التحقق...';
+  resultCard.classList.add("hidden");
+
+  const id = document.getElementById("status_id").value.trim();
+  const email = document.getElementById("status_email").value.trim();
+
+  try {
+    const res = await fetch(`${API_BASE}/applications/status?id=${encodeURIComponent(id)}&email=${encodeURIComponent(email)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "تعذّر العثور على الطلب.");
+
+    status.textContent = "";
+    let extra = "";
+    if (data.status === "approved" && data.interview_datetime) {
+      const dt = new Date(data.interview_datetime);
+      extra += `<div class="detail-row">موعد المقابلة: ${dt.toLocaleString("ar")}</div>`;
+
+      if (new Date() >= dt) {
+        const interviewUrl = `/interview?id=${encodeURIComponent(id)}&email=${encodeURIComponent(email)}`;
+        extra += `<div class="detail-row" style="margin-top:14px;">
+          <a href="${interviewUrl}"><button type="button">🎤 ابدأ المقابلة الصوتية الآن</button></a>
+        </div>`;
+      } else {
+        extra += `<div class="detail-row">ستتوفر المقابلة الصوتية تلقائيًا عند حلول الموعد أعلاه.</div>`;
+      }
+    }
+    if (data.note_ar) {
+      extra += `<div class="detail-row">${data.note_ar}</div>`;
+    }
+
+    let decisionBlock = "";
+    if (data.hiring_decision) {
+      decisionBlock = `
+        <div class="detail-row" style="margin-top:14px;">
+          <span class="status-badge ${data.hiring_decision}">${decisionBadges[data.hiring_decision] || data.hiring_decision}</span>
+        </div>
+      `;
+      if (data.hiring_feedback_ar) {
+        decisionBlock += `<div class="detail-row">${data.hiring_feedback_ar}</div>`;
+      }
+    }
+
+    resultCard.innerHTML = `
+      <h2>${data.full_name}</h2>
+      <p class="hint">${data.job_title}</p>
+      <span class="status-badge ${data.status}">${statusBadges[data.status] || data.status}</span>
+      ${extra}
+      ${decisionBlock}
+    `;
+    resultCard.classList.remove("hidden");
+  } catch (err) {
+    status.textContent = "خطأ: " + err.message;
+    status.className = "error";
+  }
+});
+
+loadDomains();
+loadOpenJobs();
+</script>
+</body>
+</html>

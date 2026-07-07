@@ -1,0 +1,51 @@
+{
+  "domain": "engineering",
+  "domain_ar": "الهندسة",
+  "version": "0.1.0",
+  "note": "هذه المعايير مبدئية للتوضيح. يجب مراجعتها واعتمادها من خبير HR أو اشتقاق أوزانها من dataset حقيقي قبل الاستخدام الفعلي.",
+  "weights_sum_to": 100,
+  "criteria": [
+    {
+      "key": "education",
+      "label_ar": "المؤهل العلمي",
+      "weight": 15,
+      "description_ar": "درجة علمية في تخصص هندسي ذي صلة أو ما يعادلها",
+      "signals": ["بكالوريوس هندسة", "ماجستير هندسة", "دكتوراه هندسة"]
+    },
+    {
+      "key": "certifications",
+      "label_ar": "الشهادات المهنية",
+      "weight": 20,
+      "description_ar": "شهادات واعتمادات مهنية ترفع من قيمة المرشح",
+      "signals": ["PMP", "PE", "هيئة المهندسين السعودية", "SCE", "Six Sigma", "NEBOSH"]
+    },
+    {
+      "key": "experience_years",
+      "label_ar": "سنوات الخبرة",
+      "weight": 20,
+      "description_ar": "عدد سنوات الخبرة العملية ذات الصلة بالتخصص الهندسي",
+      "signals": []
+    },
+    {
+      "key": "technical_skills",
+      "label_ar": "المهارات التقنية",
+      "weight": 20,
+      "description_ar": "إتقان أدوات وبرامج التصميم والتنفيذ الهندسي",
+      "signals": ["AutoCAD", "Revit", "MATLAB", "SolidWorks", "Primavera P6", "Civil 3D", "PLC"]
+    },
+    {
+      "key": "domain_knowledge",
+      "label_ar": "المعرفة التخصصية",
+      "weight": 15,
+      "description_ar": "معرفة بالمعايير والأكواد الهندسية والسلامة المهنية ذات الصلة",
+      "signals": ["الكود السعودي للبناء", "ISO 9001", "OSHA", "إدارة المشاريع الهندسية"]
+    },
+    {
+      "key": "soft_signals",
+      "label_ar": "مؤشرات إضافية",
+      "weight": 10,
+      "description_ar": "الاستقرار الوظيفي، وضوح السيرة، إنجازات قابلة للقياس",
+      "signals": ["إنجازات رقمية", "تدرّج وظيفي", "استقرار", "قيادة فرق"]
+    }
+  ]
+}

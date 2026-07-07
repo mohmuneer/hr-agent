@@ -1,0 +1,51 @@
+{
+  "domain": "accounting",
+  "domain_ar": "المحاسبة",
+  "version": "0.1.0",
+  "note": "هذه المعايير مبدئية للتوضيح. يجب مراجعتها واعتمادها من خبير HR أو اشتقاق أوزانها من dataset حقيقي قبل الاستخدام الفعلي.",
+  "weights_sum_to": 100,
+  "criteria": [
+    {
+      "key": "education",
+      "label_ar": "المؤهل العلمي",
+      "weight": 15,
+      "description_ar": "درجة علمية في المحاسبة أو المالية أو ما يعادلها",
+      "signals": ["بكالوريوس محاسبة", "بكالوريوس مالية", "ماجستير", "MBA مالي"]
+    },
+    {
+      "key": "certifications",
+      "label_ar": "الشهادات المهنية",
+      "weight": 20,
+      "description_ar": "شهادات مهنية معتمدة ترفع من قيمة المرشح",
+      "signals": ["SOCPA", "CPA", "CMA", "ACCA", "CIA"]
+    },
+    {
+      "key": "experience_years",
+      "label_ar": "سنوات الخبرة",
+      "weight": 20,
+      "description_ar": "عدد سنوات الخبرة العملية ذات الصلة",
+      "signals": []
+    },
+    {
+      "key": "technical_skills",
+      "label_ar": "المهارات التقنية",
+      "weight": 20,
+      "description_ar": "إتقان أنظمة وبرامج المحاسبة",
+      "signals": ["SAP", "Oracle", "QuickBooks", "Excel متقدم", "IFRS", "الزكاة والضريبة"]
+    },
+    {
+      "key": "domain_knowledge",
+      "label_ar": "المعرفة التخصصية",
+      "weight": 15,
+      "description_ar": "معرفة بالأنظمة المحاسبية والضريبية في السعودية",
+      "signals": ["ضريبة القيمة المضافة", "هيئة الزكاة والضريبة والجمارك", "IFRS", "التقارير المالية"]
+    },
+    {
+      "key": "soft_signals",
+      "label_ar": "مؤشرات إضافية",
+      "weight": 10,
+      "description_ar": "الاستقرار الوظيفي، وضوح السيرة، إنجازات قابلة للقياس",
+      "signals": ["إنجازات رقمية", "تدرّج وظيفي", "استقرار"]
+    }
+  ]
+}
