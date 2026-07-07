@@ -2138,12 +2138,21 @@ function renderVoiceInterviewSection(app, container) {
       `).join("")
     : '<p class="hint">لم تُحسب نتيجة التقييم بعد.</p>';
 
+  const strengthsHtml = vr && vr.strengths_ar && vr.strengths_ar.length
+    ? `<div class="strengths" style="margin-top:12px;"><h4 style="font-size:.9rem;color:var(--good);margin:0 0 6px;">نقاط القوة في المقابلة</h4><ul style="margin:0;font-size:.85rem;">${vr.strengths_ar.map(s => `<li>${s}</li>`).join("")}</ul></div>`
+    : "";
+
+  const improvementsHtml = vr && vr.improvement_areas_ar && vr.improvement_areas_ar.length
+    ? `<div class="gaps" style="margin-top:8px;"><h4 style="font-size:.9rem;color:var(--warn);margin:0 0 6px;">مجالات التطوير</h4><ul style="margin:0;font-size:.85rem;">${vr.improvement_areas_ar.map(s => `<li>${s}</li>`).join("")}</ul></div>`
+    : "";
+
   const transcriptHtml = transcript.length
     ? transcript.map(t => `
         <div class="question-item">
           <div class="q-body">
             <div class="q-text"><strong>س:</strong> ${t.question}</div>
             <div class="justification"><strong>ج:</strong> ${t.answer}</div>
+            ${t.has_audio ? '<span class="q-tag" style="font-size:.75rem;">🔊 تسجيل صوتي</span>' : ""}
           </div>
         </div>
       `).join("")
@@ -2151,7 +2160,7 @@ function renderVoiceInterviewSection(app, container) {
 
   section.innerHTML = `
     <h3>نتيجة المقابلة الصوتية</h3>
-    ${vr ? `<p class="hint" style="margin-bottom:14px;">${vr.overall_summary_ar}</p>${scoresHtml}` : '<p class="hint">المرشح أجاب لكن التقييم النهائي لم يُحسب بعد.</p>'}
+    ${vr ? `<p class="hint" style="margin-bottom:14px;">${vr.overall_summary_ar}</p>${scoresHtml}${strengthsHtml}${improvementsHtml}` : '<p class="hint">المرشح أجاب لكن التقييم النهائي لم يُحسب بعد.</p>'}
     <details style="margin-top:16px;">
       <summary class="hint" style="cursor:pointer;">عرض نص المحادثة الكامل (${transcript.length} إجابة)</summary>
       <div style="margin-top:10px;">${transcriptHtml}</div>

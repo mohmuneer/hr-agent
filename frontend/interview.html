@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>المقابلة الصوتية</title>
+<title>المقابلة الصوتية | HR Agent</title>
 <style>
   :root {
     --bg: #f7f7f8;
@@ -13,8 +13,12 @@
     --text-muted: #6b6b73;
     --primary: #2f6f4f;
     --primary-dark: #1f5138;
+    --primary-light: #e8f5f0;
     --danger: #b3432b;
-    --radius: 10px;
+    --danger-light: #fde8e4;
+    --warn: #b58900;
+    --radius: 12px;
+    --shadow: 0 2px 12px rgba(0,0,0,.06);
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -25,7 +29,10 @@
       --text-muted: #9a9aa2;
       --primary: #4caf7d;
       --primary-dark: #3a8b62;
+      --primary-light: #1a2e28;
       --danger: #e0715a;
+      --danger-light: #2d1510;
+      --shadow: 0 2px 12px rgba(0,0,0,.3);
     }
   }
   * { box-sizing: border-box; }
@@ -35,136 +42,321 @@
     background: var(--bg);
     color: var(--text);
     min-height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
-  header { padding: 28px 24px 16px; text-align: center; }
-  header h1 { margin: 0 0 6px; font-size: 1.4rem; }
-  header p { margin: 0; color: var(--text-muted); font-size: 0.92rem; }
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: var(--shadow);
+  }
+  header .logo {
+    width: 36px; height: 36px;
+    background: var(--primary); border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 1rem;
+  }
+  header h1 { margin: 0; font-size: 1rem; font-weight: 600; flex: 1; }
+  header .badge {
+    font-size: .75rem; padding: 4px 12px; border-radius: 999px;
+    background: var(--primary-light); color: var(--primary); font-weight: 600;
+  }
+  main { flex: 1; max-width: 640px; margin: 0 auto; padding: 24px 16px 64px; width: 100%; }
 
-  main { max-width: 620px; margin: 0 auto; padding: 8px 16px 64px; }
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 26px;
-    text-align: center;
+    padding: 28px;
+    box-shadow: var(--shadow);
   }
-  .hidden { display: none; }
+  .hidden { display: none !important; }
+  .center { text-align: center; }
 
-  button {
-    background: var(--primary);
-    color: #fff;
-    border: none;
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-size: 0.95rem;
-    cursor: pointer;
-    font-weight: 600;
+  .status-msg {
+    margin-top: 14px; font-size: .88rem; text-align: center;
+    color: var(--text-muted);
   }
-  button:hover { background: var(--primary-dark); }
-  button:disabled { opacity: 0.5; cursor: not-allowed; }
-  button.danger { background: var(--danger); }
-  button.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+  .status-msg.error { color: var(--danger); }
+  .status-msg.success { color: var(--primary); font-weight: 600; }
 
-  .progress { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px; }
-  .progress-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 22px; }
-  .progress-fill { height: 100%; background: var(--primary); transition: width 0.3s; }
+  .spinner {
+    display: inline-block; width: 16px; height: 16px;
+    border: 2px solid var(--border); border-top-color: var(--primary);
+    border-radius: 50%; animation: spin .7s linear infinite;
+    vertical-align: -2px; margin-inline-end: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .progress-track {
+    height: 6px; background: var(--border); border-radius: 3px;
+    overflow: hidden; margin-bottom: 20px;
+  }
+  .progress-fill {
+    height: 100%; background: var(--primary); border-radius: 3px;
+    transition: width .4s ease;
+  }
+  .progress-label {
+    font-size: .82rem; color: var(--text-muted); margin-bottom: 8px;
+    display: flex; justify-content: space-between;
+  }
 
   .question-box {
     background: var(--bg);
-    border-radius: 8px;
-    padding: 20px;
+    border-radius: 10px;
+    padding: 20px 22px;
     font-size: 1.1rem;
-    line-height: 1.7;
+    line-height: 1.8;
     margin-bottom: 20px;
-    text-align: right;
+    border-inline-start: 4px solid var(--primary);
+  }
+  .question-box .q-label {
+    font-size: .75rem; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: .5px;
+    margin-bottom: 6px;
   }
 
-  .mic-btn {
-    width: 84px; height: 84px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.8rem; margin: 12px auto; padding: 0;
-    background: var(--primary);
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    background: var(--primary); color: #fff; border: none;
+    padding: 12px 24px; border-radius: 8px;
+    font-size: .92rem; font-weight: 600; cursor: pointer;
+    font-family: inherit; transition: all .15s;
   }
-  .mic-btn.recording { background: var(--danger); animation: pulse 1.4s infinite; }
+  .btn:hover { background: var(--primary-dark); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-secondary {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: var(--border); }
+  .btn-danger { background: var(--danger); }
+  .btn-danger:hover { background: #8f3523; }
+  .btn-sm { padding: 8px 16px; font-size: .85rem; }
+  .btn-lg { padding: 16px 32px; font-size: 1rem; }
+  .btn-block { width: 100%; }
+
+  .recording-controls {
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    margin: 16px 0;
+  }
+  .mic-btn {
+    width: 80px; height: 80px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2rem; padding: 0; border: none;
+    cursor: pointer; transition: all .2s;
+    background: var(--primary); color: #fff;
+    position: relative;
+  }
+  .mic-btn:hover { transform: scale(1.05); }
+  .mic-btn.recording {
+    background: var(--danger);
+    animation: pulse 1.4s infinite;
+  }
+  .mic-btn.recording::after {
+    content: ''; position: absolute;
+    width: 100%; height: 100%; border-radius: 50%;
+    border: 3px solid var(--danger); opacity: .4;
+    animation: ripple 1.4s ease-out infinite;
+  }
   @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(179,67,43,0.4); }
-    70% { box-shadow: 0 0 0 16px rgba(179,67,43,0); }
+    0% { box-shadow: 0 0 0 0 rgba(179,67,43,.3); }
+    70% { box-shadow: 0 0 0 18px rgba(179,67,43,0); }
     100% { box-shadow: 0 0 0 0 rgba(179,67,43,0); }
   }
-  .mic-hint { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 4px; }
+  @keyframes ripple {
+    0% { transform: scale(1); opacity: .4; }
+    100% { transform: scale(1.3); opacity: 0; }
+  }
+  .mic-hint { font-size: .85rem; color: var(--text-muted); }
 
-  textarea#answer-text {
-    width: 100%; min-height: 90px; margin-top: 16px; text-align: right;
-    padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
-    background: var(--surface); color: var(--text); font-family: inherit; font-size: 0.95rem;
+  .volume-bar {
+    width: 200px; height: 4px; background: var(--border); border-radius: 2px;
+    overflow: hidden; margin: 4px auto;
+  }
+  .volume-bar-fill {
+    height: 100%; background: var(--primary); border-radius: 2px;
+    transition: width .1s; width: 0%;
+  }
+  .volume-bar-fill.loud { background: var(--danger); }
+
+  .answer-area { margin-top: 16px; }
+  .answer-area textarea {
+    width: 100%; min-height: 80px; padding: 12px 14px;
+    border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text);
+    font-family: inherit; font-size: .92rem; resize: vertical;
+    text-align: right;
+  }
+  .answer-area textarea:focus { outline: none; border-color: var(--primary); }
+
+  .audio-player {
+    margin-top: 12px;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; background: var(--bg); border-radius: 8px;
+  }
+  .audio-player audio { flex: 1; height: 40px; }
+  .audio-player .play-btn {
+    background: none; border: none; font-size: 1.3rem;
+    cursor: pointer; padding: 4px; color: var(--primary);
   }
 
-  .actions-row { display: flex; gap: 10px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+  .actions-row {
+    display: flex; gap: 10px; justify-content: center;
+    margin-top: 18px; flex-wrap: wrap;
+  }
 
-  #status-msg { margin-top: 16px; font-size: 0.88rem; color: var(--text-muted); }
-  #status-msg.error { color: var(--danger); }
+  /* Start screen */
+  .start-icon { font-size: 3rem; margin-bottom: 10px; }
+  .start-info { 
+    display: grid; gap: 10px; margin: 16px 0;
+    text-align: right;
+  }
+  .start-info .info-item {
+    display: flex; align-items: center; gap: 10px;
+    font-size: .9rem; color: var(--text-muted);
+  }
+  .start-info .info-item .icon { width: 28px; text-align: center; }
 
-  .success-icon { font-size: 2.5rem; margin-bottom: 10px; }
+  /* Done screen */
+  .done-icon { font-size: 3.5rem; margin-bottom: 12px; }
+  .done-title { margin: 0 0 6px; }
+  .done-sub { color: var(--text-muted); font-size: .92rem; }
+
+  /* Loading & Error */
+  .loading-icon { font-size: 2rem; margin-bottom: 12px; }
+  .error-icon { font-size: 2.5rem; margin-bottom: 12px; }
+
+  @media (max-width: 520px) {
+    .card { padding: 20px 16px; }
+    .question-box { font-size: 1rem; padding: 16px; }
+    .actions-row { flex-direction: column; }
+    .actions-row .btn { width: 100%; }
+    .audio-player { flex-wrap: wrap; }
+    .audio-player audio { width: 100%; }
+  }
+
+  .timer {
+    font-size: .85rem; color: var(--text-muted);
+    direction: ltr; display: inline-block;
+  }
+
+  .voice-selector {
+    margin-top: 8px; font-size: .8rem; color: var(--text-muted);
+    display: flex; align-items: center; gap: 8px; justify-content: center;
+  }
+  .voice-selector select {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 8px; font-size: .8rem;
+    color: var(--text); font-family: inherit;
+  }
 </style>
 </head>
 <body>
 
 <header>
+  <div class="logo">HR</div>
   <h1>المقابلة الصوتية</h1>
-  <p>وكيل HR سيسألك بضعة أسئلة صوتيًا — أجب بصوتك بشكل طبيعي</p>
+  <span class="badge">وكيل توظيف</span>
 </header>
 
 <main>
-  <section class="card" id="loading-card">
+  <!-- Loading -->
+  <section class="card center hidden" id="loading-card">
+    <div class="loading-icon"><span class="spinner" style="width:32px;height:32px;border-width:3px;"></span></div>
     <p>جارٍ التحقق من بيانات المقابلة...</p>
   </section>
 
-  <section class="card hidden" id="error-card">
-    <div class="success-icon">⚠️</div>
-    <p id="error-message"></p>
+  <!-- Error -->
+  <section class="card center hidden" id="error-card">
+    <div class="error-icon">⚠️</div>
+    <h3 style="margin:0 0 8px;">تعذّر بدء المقابلة</h3>
+    <p id="error-message" style="color:var(--text-muted);"></p>
+    <button type="button" class="btn btn-secondary" onclick="location.reload()" style="margin-top:12px;">إعادة المحاولة</button>
   </section>
 
-  <section class="card hidden" id="start-card">
-    <h2 id="start-title"></h2>
-    <p class="hint" style="color:var(--text-muted);">
-      عدد الأسئلة: <span id="question-count"></span>. تأكد من وجود مايكروفون متصل، وأن متصفحك يدعم التعرف على الصوت (Chrome أو Edge).
-      ستُقرأ الأسئلة عليك بصوت الجهاز، وتُجيب أنت بصوتك — يمكنك مراجعة النص المكتوب وتعديله قبل الإرسال.
+  <!-- Start -->
+  <section class="card center hidden" id="start-card">
+    <div class="start-icon">🎤</div>
+    <h2 id="start-title" style="margin:0 0 4px;"></h2>
+    <p id="start-subtitle" style="color:var(--text-muted);font-size:.92rem;margin:0 0 16px;"></p>
+    <div class="start-info">
+      <div class="info-item"><span class="icon">❓</span> <span>عدد الأسئلة: <strong id="q-count"></strong></span></div>
+      <div class="info-item"><span class="icon">⏱️</span> <span>الوقت المتوقع: حوالي <strong id="q-time"></strong></span></div>
+      <div class="info-item"><span class="icon">🎧</span> <span>استخدم سماعات الرأس للحصول على أفضل جودة</span></div>
+      <div class="info-item"><span class="icon">🌙</span> <span>اختر مكانًا هادئًا للإجابة</span></div>
+    </div>
+    <p style="font-size:.85rem;color:var(--text-muted);">
+      ستُقرأ الأسئلة عليك تلقائيًا. سجّل إجاباتك بصوتك، وراجع النص قبل الانتقال للسؤال التالي.
     </p>
-    <button type="button" id="start-btn">ابدأ المقابلة</button>
+    <div class="voice-selector" id="voice-selector-cont">
+      <span>صوت القراءة:</span>
+      <select id="voice-select"></select>
+    </div>
+    <button type="button" class="btn btn-lg" id="start-btn" style="margin-top:12px;">🎤 ابدأ المقابلة</button>
   </section>
 
+  <!-- Interview -->
   <section class="card hidden" id="interview-card">
-    <div class="progress" id="progress-label"></div>
-    <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    <div class="progress-label">
+      <span id="progress-text">سؤال 1 من 5</span>
+      <span id="timer-display" class="timer"></span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
 
-    <div class="question-box" id="question-box"></div>
-
-    <button type="button" id="replay-btn" class="secondary">🔊 إعادة قراءة السؤال</button>
-
-    <div>
-      <button type="button" id="mic-btn" class="mic-btn">🎤</button>
-      <div class="mic-hint" id="mic-hint">اضغط للبدء بالإجابة</div>
+    <div class="question-box">
+      <div class="q-label">السؤال الحالي</div>
+      <div id="question-text"></div>
     </div>
 
-    <textarea id="answer-text" placeholder="سيظهر نص إجابتك هنا أثناء الحديث — يمكنك تعديله يدويًا قبل الإرسال."></textarea>
+    <div class="center" style="display:flex;gap:8px;justify-content:center;margin-bottom:4px;">
+      <button type="button" id="replay-btn" class="btn btn-secondary btn-sm">🔊 إعادة القراءة</button>
+    </div>
+
+    <div class="recording-controls">
+      <button type="button" id="mic-btn" class="mic-btn">🎤</button>
+      <div class="volume-bar"><div class="volume-bar-fill" id="volume-fill"></div></div>
+      <div class="mic-hint" id="mic-hint">اضغط للتسجيل</div>
+    </div>
+
+    <div class="answer-area">
+      <textarea id="answer-text" placeholder="سيظهر نص إجابتك هنا. يمكنك تعديله يدويًا قبل الإرسال."></textarea>
+    </div>
+
+    <div id="audio-playback" class="audio-player hidden">
+      <span style="font-size:.85rem;color:var(--text-muted);">🔊 تسجيلك:</span>
+      <audio id="audio-playback-el" controls></audio>
+      <button type="button" id="delete-audio-btn" class="btn btn-danger btn-sm">🗑️</button>
+    </div>
 
     <div class="actions-row">
-      <button type="button" id="next-btn" disabled>التالي ➜</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="clear-btn">إعادة تعيين</button>
+      <button type="button" class="btn" id="next-btn" disabled>➜ التالي</button>
     </div>
 
-    <div id="status-msg"></div>
+    <div id="interview-status" class="status-msg"></div>
   </section>
 
-  <section class="card hidden" id="finish-card">
-    <p>انتهيت من كل الأسئلة. اضغط الزر أدناه لإنهاء المقابلة وإرسالها لفريق التوظيف.</p>
-    <button type="button" id="finish-btn">إنهاء المقابلة وإرسالها</button>
-    <div id="finish-status"></div>
+  <!-- Finish -->
+  <section class="card center hidden" id="finish-card">
+    <div style="font-size:3rem;margin-bottom:10px;">🏁</div>
+    <h3 style="margin:0 0 6px;">أكملت جميع الأسئلة!</h3>
+    <p style="color:var(--text-muted);font-size:.92rem;">اضغط أدناه لإرسال إجاباتك لفريق التوظيف.</p>
+    <button type="button" class="btn btn-lg" id="finish-btn">📤 إنهاء المقابلة وإرسالها</button>
+    <div id="finish-status" class="status-msg"></div>
   </section>
 
-  <section class="card hidden" id="done-card">
-    <div class="success-icon">✅</div>
-    <h2>شكرًا لك على وقتك</h2>
-    <p style="color:var(--text-muted);">تم إرسال إجاباتك بنجاح. سيقوم فريق التوظيف بمراجعتها والتواصل معك عند وجود تحديث.</p>
+  <!-- Done -->
+  <section class="card center hidden" id="done-card">
+    <div class="done-icon">✅</div>
+    <h3 class="done-title">شكرًا لك على وقتك!</h3>
+    <p class="done-sub">تم إرسال إجاباتك بنجاح. سيقوم فريق التوظيف بمراجعتها والتواصل معك.</p>
+    <div style="margin-top:20px;padding:16px;background:var(--primary-light);border-radius:8px;font-size:.88rem;">
+      تم تسجيل <strong id="done-count"></strong> إجابة صوتية ورفعها للنظام.
+    </div>
   </section>
 </main>
 
@@ -174,200 +366,388 @@ const params = new URLSearchParams(location.search);
 const appId = params.get("id");
 const email = params.get("email");
 
-const el = (id) => document.getElementById(id);
-function show(id) {
-  ["loading-card","error-card","start-card","interview-card","finish-card","done-card"]
-    .forEach(x => el(x).classList.toggle("hidden", x !== id));
-}
-
 let questions = [];
 let currentIndex = 0;
 let recognition = null;
 let isRecording = false;
 
-function showError(message) {
-  el("error-message").textContent = message;
+// Audio recording
+let mediaRecorder = null;
+let audioChunks = [];
+let audioBlob = null;
+let audioUrl = null;
+let audioStream = null;
+let volumeInterval = null;
+
+// Timing
+let questionStartTime = null;
+let timerInterval = null;
+
+const $ = (id) => document.getElementById(id);
+function show(id) {
+  ["loading-card","error-card","start-card","interview-card","finish-card","done-card"]
+    .forEach(x => $(x).classList.toggle("hidden", x !== id));
+}
+
+function showError(msg) {
+  $("error-message").textContent = msg;
   show("error-card");
 }
 
-async function init() {
-  if (!appId || !email) {
-    showError("رابط غير صالح. تأكد من استخدام نفس الرابط الذي حصلت عليه بعد التقديم.");
+// --- Voice & TTS ---
+let selectedVoice = null;
+
+function loadVoices() {
+  const sel = $("voice-select");
+  const voices = speechSynthesis.getVoices().filter(v => v.lang.startsWith("ar"));
+  sel.innerHTML = "";
+  if (voices.length === 0) {
+    sel.innerHTML = '<option value="">الصوت الافتراضي</option>';
     return;
   }
-  try {
-    const res = await fetch(`${API_BASE}/applications/${appId}/interview/questions?email=${encodeURIComponent(email)}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "تعذّر تحميل بيانات المقابلة.");
-
-    questions = data.questions;
-    el("start-title").textContent = `مرحبًا ${data.full_name} — مقابلة ${data.job_title}`;
-    el("question-count").textContent = questions.length;
-    show("start-card");
-  } catch (err) {
-    showError(err.message);
-  }
+  // Prefer Microsoft or Google Arabic voices
+  const preferred = voices.find(v => v.name.includes("Microsoft") && v.lang === "ar-SA")
+    || voices.find(v => v.name.includes("Google") && v.lang.startsWith("ar"))
+    || voices[0];
+  voices.forEach(v => {
+    const opt = document.createElement("option");
+    opt.value = v.name;
+    opt.textContent = `${v.name} (${v.lang})`;
+    if (v.name === preferred.name) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  selectedVoice = preferred;
 }
 
-function setupRecognition() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) return null;
+// Load voices (they may load async)
+speechSynthesis.getVoices(); // trigger
+setTimeout(loadVoices, 200);
+speechSynthesis.onvoiceschanged = loadVoices;
 
-  const r = new SpeechRecognition();
-  r.lang = "ar-SA";
-  r.continuous = true;
-  r.interimResults = true;
-
-  r.onresult = (event) => {
-    let finalText = el("answer-text").dataset.finalized || "";
-    let interim = "";
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const transcript = event.results[i][0].transcript;
-      if (event.results[i].isFinal) {
-        finalText += transcript + " ";
-      } else {
-        interim += transcript;
-      }
-    }
-    el("answer-text").dataset.finalized = finalText;
-    el("answer-text").value = (finalText + interim).trim();
-  };
-
-  r.onerror = (event) => {
-    const statusEl = el("status-msg");
-    statusEl.className = "error";
-    if (event.error === "not-allowed" || event.error === "permission-denied") {
-      statusEl.textContent = "تم رفض إذن الوصول للمايكروفون. فعّله من إعدادات المتصفح وحاول مجددًا.";
-    } else {
-      statusEl.textContent = "خطأ في التعرف على الصوت: " + event.error;
-    }
-    stopRecording();
-  };
-
-  r.onend = () => {
-    if (isRecording) {
-      // بعض المتصفحات توقف التعرف تلقائيًا بعد صمت — أعد التشغيل ما دام المستخدم لم يضغط إيقاف
-      try { r.start(); } catch (e) { /* تجاهل تكرار start */ }
-    }
-  };
-
-  return r;
-}
-
-function startRecording() {
-  if (!recognition) {
-    el("status-msg").className = "error";
-    el("status-msg").textContent = "متصفحك لا يدعم التعرف على الصوت. جرّب Chrome أو Edge على سطح المكتب.";
-    return;
-  }
-  el("answer-text").dataset.finalized = el("answer-text").value ? el("answer-text").value + " " : "";
-  isRecording = true;
-  el("mic-btn").classList.add("recording");
-  el("mic-hint").textContent = "🔴 يستمع الآن... اضغط لإيقاف التسجيل";
-  el("status-msg").className = "";
-  el("status-msg").textContent = "";
-  try { recognition.start(); } catch (e) { /* قد يكون بدأ مسبقًا */ }
-}
-
-function stopRecording() {
-  isRecording = false;
-  if (recognition) {
-    try { recognition.stop(); } catch (e) {}
-  }
-  el("mic-btn").classList.remove("recording");
-  el("mic-hint").textContent = "اضغط لإعادة التسجيل، أو عدّل النص يدويًا";
-  el("next-btn").disabled = el("answer-text").value.trim().length === 0;
-}
-
-el("mic-btn").addEventListener("click", () => {
-  if (isRecording) stopRecording();
-  else startRecording();
-});
-
-el("answer-text").addEventListener("input", () => {
-  el("next-btn").disabled = el("answer-text").value.trim().length === 0;
+$("voice-select").addEventListener("change", () => {
+  const name = $("voice-select").value;
+  selectedVoice = speechSynthesis.getVoices().find(v => v.name === name) || null;
 });
 
 function speak(text, onEnd) {
   window.speechSynthesis.cancel();
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = "ar-SA";
-  utter.rate = 0.95;
+  utter.rate = 0.92;
+  if (selectedVoice) utter.voice = selectedVoice;
   if (onEnd) utter.onend = onEnd;
-  else utter.onend = null;
   window.speechSynthesis.speak(utter);
 }
 
-function loadQuestion() {
-  const q = questions[currentIndex];
-  el("progress-label").textContent = `سؤال ${currentIndex + 1} من ${questions.length}`;
-  el("progress-fill").style.width = `${((currentIndex) / questions.length) * 100}%`;
-  el("question-box").textContent = q;
-  el("answer-text").value = "";
-  el("answer-text").dataset.finalized = "";
-  el("next-btn").disabled = true;
-  el("status-msg").textContent = "";
-  el("status-msg").className = "";
-  if (isRecording) stopRecording();
-  speak(q);
+// --- Audio Recording ---
+async function initRecorder() {
+  try {
+    audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus" : "audio/webm";
+    mediaRecorder = new MediaRecorder(audioStream, { mimeType });
+    audioChunks = [];
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      cleanupAudioStream();
+      audioBlob = new Blob(audioChunks, { type: mimeType });
+      audioUrl = URL.createObjectURL(audioBlob);
+      const audioEl = $("audio-playback-el");
+      audioEl.src = audioUrl;
+      $("audio-playback").classList.remove("hidden");
+      // Auto-run speech recognition on the audio (alternative approach)
+    };
+    return true;
+  } catch (e) {
+    $("interview-status").className = "status-msg error";
+    $("interview-status").textContent = "⚠️ لا يمكن الوصول للمايكروفون. تأكد من الإذن.";
+    return false;
+  }
 }
 
-el("replay-btn").addEventListener("click", () => speak(questions[currentIndex]));
+function cleanupAudioStream() {
+  if (audioStream) {
+    audioStream.getTracks().forEach(t => t.stop());
+    audioStream = null;
+  }
+}
 
-el("start-btn").addEventListener("click", () => {
+function startRecording() {
+  if (!mediaRecorder) {
+    initRecorder().then(ok => { if (ok) doStartRecording(); });
+    return;
+  }
+  doStartRecording();
+}
+
+function doStartRecording() {
+  audioChunks = [];
+  audioBlob = null;
+  if (audioUrl) { URL.revokeObjectURL(audioUrl); audioUrl = null; }
+  $("audio-playback").classList.add("hidden");
+  $("audio-playback-el").src = "";
+
+  // Start speech recognition too
+  if (recognition) {
+    $("answer-text").dataset.finalized = $("answer-text").value ? $("answer-text").value + " " : "";
+    try { recognition.start(); } catch (e) {}
+  }
+
+  mediaRecorder.start();
+  isRecording = true;
+  $("mic-btn").classList.add("recording");
+  $("mic-btn").textContent = "⏹";
+  $("mic-hint").textContent = "🔴 يسجل الآن... اضغط للإيقاف";
+  $("volume-fill").style.width = "0%";
+  startVolumeMeter();
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
+  }
+  if (recognition) {
+    try { recognition.stop(); } catch (e) {}
+  }
+  isRecording = false;
+  $("mic-btn").classList.remove("recording");
+  $("mic-btn").textContent = "🎤";
+  $("mic-hint").textContent = "اضغط لإعادة التسجيل";
+  stopVolumeMeter();
+  enableNextIfReady();
+}
+
+function toggleRecording() {
+  if (isRecording) { stopRecording(); }
+  else { startRecording(); }
+}
+
+function startVolumeMeter() {
+  if (!audioStream) return;
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = ctx.createMediaStreamSource(audioStream);
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
+  source.connect(analyser);
+  const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+  volumeInterval = setInterval(() => {
+    if (!isRecording) { clearInterval(volumeInterval); ctx.close(); return; }
+    analyser.getByteFrequencyData(dataArray);
+    const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+    const pct = Math.min(100, avg * 2);
+    const fill = $("volume-fill");
+    fill.style.width = pct + "%";
+    fill.className = "volume-bar-fill" + (pct > 60 ? " loud" : "");
+  }, 100);
+}
+
+function stopVolumeMeter() {
+  if (volumeInterval) { clearInterval(volumeInterval); volumeInterval = null; }
+  $("volume-fill").style.width = "0%";
+}
+
+// --- Speech Recognition ---
+function setupRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  const r = new SR();
+  r.lang = "ar-SA";
+  r.continuous = true;
+  r.interimResults = true;
+  r.onresult = (event) => {
+    let finalText = $("answer-text").dataset.finalized || "";
+    let interim = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const t = event.results[i][0].transcript;
+      if (event.results[i].isFinal) finalText += t + " ";
+      else interim += t;
+    }
+    $("answer-text").dataset.finalized = finalText;
+    $("answer-text").value = (finalText + interim).trim();
+    enableNextIfReady();
+  };
+  r.onerror = (event) => {
+    if (event.error !== "no-speech" && event.error !== "aborted") {
+      $("interview-status").className = "status-msg error";
+      $("interview-status").textContent = "خطأ: " + event.error;
+    }
+    if (isRecording) stopRecording();
+  };
+  r.onend = () => {
+    if (isRecording) { try { r.start(); } catch (e) {} }
+  };
+  return r;
+}
+
+// --- Next button state ---
+function enableNextIfReady() {
+  const text = $("answer-text").value.trim();
+  $("next-btn").disabled = !text && !audioBlob;
+}
+
+// --- Timer ---
+function startTimer() {
+  questionStartTime = Date.now();
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - questionStartTime) / 1000);
+    const min = Math.floor(elapsed / 60);
+    const sec = elapsed % 60;
+    $("timer-display").textContent = `${min}:${sec.toString().padStart(2, "0")}`;
+  }, 1000);
+}
+
+function stopTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+
+// --- Question loading ---
+function loadQuestion() {
+  const q = questions[currentIndex];
+  $("progress-text").textContent = `السؤال ${currentIndex + 1} من ${questions.length}`;
+  $("progress-fill").style.width = `${(currentIndex / questions.length) * 100}%`;
+  $("question-text").textContent = q;
+  $("answer-text").value = "";
+  $("answer-text").dataset.finalized = "";
+  $("audio-playback").classList.add("hidden");
+  $("audio-playback-el").src = "";
+  audioBlob = null;
+  if (audioUrl) { URL.revokeObjectURL(audioUrl); audioUrl = null; }
+  $("next-btn").disabled = true;
+  $("interview-status").className = "status-msg";
+  $("interview-status").textContent = "";
+  if (isRecording) stopRecording();
+  startTimer();
+  // Auto-speak the question
+  setTimeout(() => speak(q), 400);
+}
+
+// --- Init ---
+async function init() {
+  if (!appId || !email) {
+    showError("رابط غير صالح. تأكد من استخدام الرابط الصحيح.");
+    return;
+  }
+  try {
+    const res = await fetch(`${API_BASE}/applications/${appId}/interview/questions?email=${encodeURIComponent(email)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "تعذّر تحميل البيانات.");
+    questions = data.questions;
+    const timeEstimate = Math.ceil(questions.length * 2);
+    $("start-title").textContent = `مرحبًا ${data.full_name}`;
+    $("start-subtitle").textContent = `مقابلة ${data.job_title}`;
+    $("q-count").textContent = questions.length;
+    $("q-time").textContent = `${timeEstimate} دقائق`;
+    show("start-card");
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+// --- Event Listeners ---
+$("start-btn").addEventListener("click", async () => {
   recognition = setupRecognition();
+  const ok = await initRecorder();
+  if (!ok) return;
   show("interview-card");
   currentIndex = 0;
   loadQuestion();
 });
 
-el("next-btn").addEventListener("click", async () => {
-  const answer = el("answer-text").value.trim();
-  if (!answer) return;
+$("mic-btn").addEventListener("click", toggleRecording);
 
-  const btn = el("next-btn");
+$("replay-btn").addEventListener("click", () => speak(questions[currentIndex]));
+
+$("answer-text").addEventListener("input", enableNextIfReady);
+
+$("clear-btn").addEventListener("click", () => {
+  $("answer-text").value = "";
+  $("answer-text").dataset.finalized = "";
+  audioBlob = null;
+  $("audio-playback").classList.add("hidden");
+  $("audio-playback-el").src = "";
+  $("next-btn").disabled = true;
+  $("interview-status").className = "status-msg";
+  $("interview-status").textContent = "";
+});
+
+$("delete-audio-btn").addEventListener("click", () => {
+  audioBlob = null;
+  $("audio-playback").classList.add("hidden");
+  $("audio-playback-el").src = "";
+  enableNextIfReady();
+});
+
+$("next-btn").addEventListener("click", async () => {
+  const answer = $("answer-text").value.trim();
+  if (!answer && !audioBlob) return;
+
+  const btn = $("next-btn");
   btn.disabled = true;
-  el("status-msg").className = "";
-  el("status-msg").textContent = "جارٍ الحفظ...";
+  const statusEl = $("interview-status");
+  statusEl.className = "status-msg";
+  statusEl.innerHTML = '<span class="spinner"></span>جارٍ الحفظ...';
+
+  stopTimer();
+  if (isRecording) stopRecording();
 
   try {
-    const res = await fetch(`${API_BASE}/applications/${appId}/interview/turn`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email,
-        question_index: currentIndex,
-        question_text: questions[currentIndex],
-        answer_text: answer,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "تعذّر حفظ الإجابة.");
+    // Upload audio if recorded
+    if (audioBlob) {
+      const audioForm = new FormData();
+      audioForm.append("file", audioBlob, `answer_${currentIndex}.webm`);
+      audioForm.append("email", email);
+      audioForm.append("question_index", currentIndex);
+      audioForm.append("question_text", questions[currentIndex]);
+      audioForm.append("answer_text", answer);
+
+      await fetch(`${API_BASE}/applications/${appId}/interview/turn`, {
+        method: "POST",
+        body: audioForm,
+      });
+    } else {
+      // Text only
+      await fetch(`${API_BASE}/applications/${appId}/interview/turn`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          question_index: currentIndex,
+          question_text: questions[currentIndex],
+          answer_text: answer,
+        }),
+      });
+    }
 
     currentIndex++;
     if (currentIndex >= questions.length) {
-      el("progress-fill").style.width = "100%";
+      $("progress-fill").style.width = "100%";
       window.speechSynthesis.cancel();
-      if (recognition) { try { recognition.stop(); } catch (e) {} }
+      if (recognition) try { recognition.stop(); } catch (e) {}
+      stopRecording();
       show("finish-card");
     } else {
-      el("status-msg").textContent = "";
+      statusEl.textContent = "";
       loadQuestion();
     }
   } catch (err) {
-    el("status-msg").className = "error";
-    el("status-msg").textContent = "خطأ: " + err.message;
+    statusEl.className = "status-msg error";
+    statusEl.textContent = "خطأ: " + err.message;
     btn.disabled = false;
   }
 });
 
-el("finish-btn").addEventListener("click", async () => {
-  const btn = el("finish-btn");
+$("finish-btn").addEventListener("click", async () => {
+  const btn = $("finish-btn");
   btn.disabled = true;
-  const statusEl = el("finish-status");
-  statusEl.className = "hint";
-  statusEl.textContent = "جارٍ إنهاء المقابلة...";
-
+  const statusEl = $("finish-status");
+  statusEl.className = "status-msg";
+  statusEl.innerHTML = '<span class="spinner"></span>جارٍ إنهاء المقابلة...';
   try {
     const res = await fetch(`${API_BASE}/applications/${appId}/interview/evaluate`, {
       method: "POST",
@@ -376,9 +756,10 @@ el("finish-btn").addEventListener("click", async () => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "تعذّر إنهاء المقابلة.");
+    $("done-count").textContent = questions.length;
     show("done-card");
   } catch (err) {
-    statusEl.className = "error";
+    statusEl.className = "status-msg error";
     statusEl.textContent = "خطأ: " + err.message;
     btn.disabled = false;
   }

@@ -6,10 +6,12 @@ from app.services.json_utils import JsonExtractionError, extract_json
 from app.services.llm_client import LLMError, generate_text
 
 DIMENSION_LABELS_AR = {
-    "confidence": "الثقة",
-    "culture": "الثقافة العامة والمهنية",
-    "understanding": "الفهم",
+    "confidence": "الثقة والوضوح",
+    "communication": "مهارات التواصل",
+    "culture": "المعرفة العامة والمهنية",
+    "understanding": "الفهم والاستيعاب",
     "reasoning": "المنطق والتحليل",
+    "problem_solving": "حل المشكلات",
 }
 
 
@@ -53,4 +55,6 @@ def evaluate_voice_interview(
     return {
         "scores": scores,
         "overall_summary_ar": parsed.get("overall_summary_ar", ""),
+        "strengths_ar": parsed.get("strengths_ar", []),
+        "improvement_areas_ar": parsed.get("improvement_areas_ar", []),
     }

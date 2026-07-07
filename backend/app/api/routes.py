@@ -8,6 +8,7 @@ from io import BytesIO
 from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from openpyxl import Workbook
 
+from app.core.config import get_settings
 from app.schemas.analysis import (
     AddQuestionRequest,
     ApplicationDetail,
@@ -698,21 +699,51 @@ def get_voice_interview_questions(app_id: str, email: str) -> dict:
 
 
 @router.post("/applications/{app_id}/interview/turn")
-def submit_voice_turn(app_id: str, req: VoiceTurnRequest) -> dict:
-    """يستقبل زوج سؤال/إجابة واحد من المقابلة الصوتية ويضيفه لنص المحادثة المتراكم."""
+async def submit_voice_turn(
+    app_id: str,
+    request: Request,
+    email: str = Form(...),
+    question_index: int = Form(...),
+    question_text: str = Form(...),
+    answer_text: str = Form(""),
+    file: UploadFile | None = File(None),
+) -> dict:
+    """يستقبل زوج سؤال/إجابة واحد من المقابلة الصوتية مع إمكانية رفع ملف صوتي."""
+    settings = get_settings()
     record = get_application(app_id)
     if record is None:
         raise HTTPException(status_code=404, detail="الطلب غير موجود")
-    _check_voice_eligibility(record, req.email)
+    _check_voice_eligibility(record, email)
 
     transcript = record.get("voice_transcript", [])
-    transcript.append(
-        {
-            "question_index": req.question_index,
-            "question": req.question_text,
-            "answer": req.answer_text,
-        }
-    )
+    turn = {
+        "question_index": question_index,
+        "question": question_text,
+        "answer": answer_text,
+    }
+
+    # إذا وُجد ملف صوتي، نقرؤه ونخزّن metadata عنه
+    if file:
+        audio_bytes = await file.read()
+        turn["has_audio"] = True
+        turn["audio_size"] = len(audio_bytes)
+        turn["audio_type"] = file.content_type or "audio/webm"
+        turn["audio_filename"] = file.filename or f"answer_{question_index}.webm"
+
+        # نخزّن الصوت في مجلد مؤقت إذا كان متاحًا
+        audio_dir = settings.APPLICATIONS_DIR / "audio"
+        try:
+            audio_dir.mkdir(parents=True, exist_ok=True)
+            audio_path = audio_dir / f"{app_id}_{question_index}.webm"
+            audio_path.write_bytes(audio_bytes)
+            turn["audio_path"] = str(audio_path)
+        except OSError:
+            # Vercel read-only FS — نخزّن في الـ DB بالـ base64
+            import base64
+            turn["audio_base64"] = base64.b64encode(audio_bytes).decode()
+            turn.pop("audio_path", None)
+
+    transcript.append(turn)
     update_application(app_id, {"voice_transcript": transcript})
     return {"ok": True}
 
