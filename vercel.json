@@ -1,10 +1,7 @@
 {
-  "functions": {
-    "api/index.py": {
-      "runtime": "python3.12",
-      "includeFiles": "backend/**"
-    }
-  },
+  "builds": [
+    { "src": "api/index.py", "use": "@vercel/python" }
+  ],
   "rewrites": [
     { "source": "/(apply|login|interview|health)", "destination": "/api/index.py" },
     { "source": "/app(/?.*)", "destination": "/api/index.py" },
