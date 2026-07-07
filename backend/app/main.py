@@ -37,6 +37,11 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend"
 app.mount("/app", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
 
+@app.get("/", include_in_schema=False)
+def root() -> FileResponse:
+    return FileResponse(FRONTEND_DIR / "login.html")
+
+
 @app.get("/apply", include_in_schema=False)
 def apply_page() -> FileResponse:
     """صفحة تقديم خارجية للمرشحين — منفصلة عن لوحة HR الداخلية."""

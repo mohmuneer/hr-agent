@@ -3,8 +3,9 @@
     { "src": "api/index.py", "use": "@vercel/python" }
   ],
   "rewrites": [
-    { "source": "/(apply|login|interview|health)", "destination": "/api/index.py" },
-    { "source": "/app(/?.*)", "destination": "/api/index.py" },
+    { "source": "/app/(.*)", "destination": "/api/index.py" },
+    { "source": "/(apply|login|interview)", "destination": "/api/index.py" },
+    { "source": "/health", "destination": "/api/index.py" },
     { "source": "/api/v1/(.*)", "destination": "/api/index.py" },
     { "source": "/", "destination": "/api/index.py" }
   ]
