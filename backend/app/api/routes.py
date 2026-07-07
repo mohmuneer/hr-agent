@@ -211,10 +211,11 @@ def get_criteria(domain: str) -> dict:
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.get("/jobs", response_model=list[Job])
-def get_jobs(status: str | None = None) -> list[dict]:
+@router.get("/jobs")
+def get_jobs(status: str | None = None, limit: int = 50, offset: int = 0) -> dict:
     """قائمة الوظائف — عامة (تستخدمها صفحة التقديم لعرض الوظائف المفتوحة)."""
-    return list_jobs(status)
+    items, total = list_jobs(status, limit, offset)
+    return {"items": items, "total": total}
 
 
 @router.post("/jobs", response_model=Job)
@@ -254,10 +255,13 @@ def remove_job(job_id: str, _admin: None = Depends(require_admin), request: Requ
 # --- بيانات الموظفين: رواتب، جنسيات، إقامات — بيانات حساسة، كل النقاط هنا محمية بالكامل ---
 
 
-@router.get("/employees", response_model=list[Employee])
-def get_employees(_admin: None = Depends(require_admin)) -> list[dict]:
+@router.get("/employees")
+def get_employees(
+    limit: int = 50, offset: int = 0, _admin: None = Depends(require_admin)
+) -> dict:
     """قائمة الموظفين."""
-    return list_employees()
+    items, total = list_employees(limit, offset)
+    return {"items": items, "total": total}
 
 
 @router.post("/employees", response_model=Employee)
@@ -372,10 +376,13 @@ async def submit_application(
     return ApplicationSubmitResponse(id=app_id)
 
 
-@router.get("/applications", response_model=list[ApplicationSummary])
-def get_applications(_admin: None = Depends(require_admin)) -> list[dict]:
+@router.get("/applications")
+def get_applications(
+    limit: int = 50, offset: int = 0, _admin: None = Depends(require_admin)
+) -> dict:
     """قائمة الطلبات الواردة — لاستخدام فريق HR فقط."""
-    return list_applications()
+    items, total = list_applications(limit, offset)
+    return {"items": items, "total": total}
 
 
 @router.get("/applications/status", response_model=ApplicationStatusResponse)
@@ -752,6 +759,7 @@ def get_audit_logs(
     limit: int = 100,
     offset: int = 0,
     _admin: None = Depends(require_admin),
-) -> list[dict]:
+) -> dict:
     """سجل التدقيق — آخر العمليات في النظام."""
-    return list_logs(limit, offset)
+    items, total = list_logs(limit, offset)
+    return {"items": items, "total": total}

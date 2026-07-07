@@ -79,11 +79,13 @@ def delete_employee(emp_id: str) -> bool:
         db.close()
 
 
-def list_employees() -> list[dict]:
+def list_employees(limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
     db = SessionLocal()
     try:
-        rows = db.query(Employee).order_by(asc(Employee.full_name)).all()
-        return [_row_to_dict(r) for r in rows]
+        q = db.query(Employee)
+        total = q.count()
+        rows = q.order_by(asc(Employee.full_name)).offset(offset).limit(limit).all()
+        return [_row_to_dict(r) for r in rows], total
     finally:
         db.close()
 

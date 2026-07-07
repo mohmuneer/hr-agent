@@ -234,8 +234,9 @@ let openJobs = [];
 async function loadOpenJobs() {
   const select = document.getElementById("job_select");
   try {
-    const res = await fetch(`${API_BASE}/jobs?status=open`);
-    openJobs = await res.json();
+    const res = await fetch(`${API_BASE}/jobs?status=open&limit=1000&offset=0`);
+    const data = await res.json();
+    openJobs = data.items || [];
     if (!openJobs.length) return;
     openJobs.forEach(j => {
       const opt = document.createElement("option");

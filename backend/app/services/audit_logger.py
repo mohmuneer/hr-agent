@@ -33,18 +33,14 @@ def log_action(
         db.close()
 
 
-def list_logs(limit: int = 100, offset: int = 0) -> list[dict]:
+def list_logs(limit: int = 100, offset: int = 0) -> tuple[list[dict], int]:
     """جلب آخر سجلات التدقيق."""
     db = SessionLocal()
     try:
-        rows = (
-            db.query(AuditLog)
-            .order_by(AuditLog.created_at.desc())
-            .offset(offset)
-            .limit(limit)
-            .all()
-        )
-        return [
+        q = db.query(AuditLog)
+        total = q.count()
+        rows = q.order_by(AuditLog.created_at.desc()).offset(offset).limit(limit).all()
+        items = [
             {
                 "id": r.id,
                 "created_at": r.created_at.isoformat(),
@@ -57,5 +53,6 @@ def list_logs(limit: int = 100, offset: int = 0) -> list[dict]:
             }
             for r in rows
         ]
+        return items, total
     finally:
         db.close()

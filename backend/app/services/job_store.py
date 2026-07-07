@@ -73,14 +73,15 @@ def delete_job(job_id: str) -> bool:
         db.close()
 
 
-def list_jobs(status: str | None = None) -> list[dict]:
+def list_jobs(status: str | None = None, limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
     db = SessionLocal()
     try:
         q = db.query(Job)
         if status:
             q = q.filter(Job.status == status)
-        rows = q.order_by(desc(Job.created_at)).all()
-        return [_row_to_dict(r) for r in rows]
+        total = q.count()
+        rows = q.order_by(desc(Job.created_at)).offset(offset).limit(limit).all()
+        return [_row_to_dict(r) for r in rows], total
     finally:
         db.close()
 

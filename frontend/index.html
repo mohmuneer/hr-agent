@@ -740,8 +740,9 @@ async function loadOverview() {
   const domainCard = document.getElementById("overview-domains");
   grid.textContent = "جارٍ التحميل...";
   try {
-    const res = await apiFetch(`${API_BASE}/applications`);
-    const apps = await res.json();
+    const res = await apiFetch(`${API_BASE}/applications?limit=10000&offset=0`);
+    const data = await res.json();
+    const apps = data.items || [];
 
     const byStatus = { pending: 0, approved: 0, rejected: 0 };
     const byDecision = { accepted: 0, rejected: 0 };
@@ -764,8 +765,9 @@ async function loadOverview() {
 
     let expiringIqamaCount = 0;
     try {
-      const empRes = await apiFetch(`${API_BASE}/employees`);
-      const employees = await empRes.json();
+      const empRes = await apiFetch(`${API_BASE}/employees?limit=10000&offset=0`);
+      const empData = await empRes.json();
+      const employees = empData.items || [];
       expiringIqamaCount = employees.filter(e => {
         const st = iqamaStatus(e.iqama_expiry_date);
         return st && (st.cls === "pending" || st.cls === "rejected");
@@ -856,14 +858,18 @@ async function loadCriteriaView() {
   }
 }
 
+let auditPagination = { offset: 0, limit: 50, total: 0 };
+
 async function loadAuditLogs() {
   const container = document.getElementById("audit-list");
   container.textContent = "جارٍ التحميل...";
   try {
-    const res = await apiFetch(`${API_BASE}/audit-logs`);
-    const logs = await res.json();
+    const res = await apiFetch(`${API_BASE}/audit-logs?limit=${auditPagination.limit}&offset=${auditPagination.offset}`);
+    const data = await res.json();
+    const logs = data.items || [];
+    auditPagination.total = data.total || 0;
     if (!logs.length) {
-      container.textContent = "لا توجد سجلات بعد.";
+      container.innerHTML = '<p class="hint">لا توجد سجلات بعد.</p>';
       return;
     }
     const actionLabels = {
@@ -876,6 +882,8 @@ async function loadAuditLogs() {
     const typeLabels = {
       auth: "المصادقة", application: "طلب تقديم", job: "وظيفة", employee: "موظف",
     };
+    const totalPages = Math.ceil(auditPagination.total / auditPagination.limit);
+    const currentPage = Math.floor(auditPagination.offset / auditPagination.limit) + 1;
     container.innerHTML = `
       <table class="apps-table">
         <thead><tr>
@@ -892,10 +900,20 @@ async function loadAuditLogs() {
           }
           return `<tr><td style="white-space:nowrap;">${time}</td><td>${log.username}</td><td>${action}</td><td>${type}</td><td class="hint">${detail}</td></tr>`;
         }).join("")}</tbody>
-      </table>`;
+      </table>
+      <div class="pagination" style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:12px;">
+        <button type="button" class="link-btn" onclick="auditPage(-1)" ${currentPage <= 1 ? "disabled" : ""}>السابق</button>
+        <span class="hint">الصفحة ${currentPage} من ${totalPages || 1}</span>
+        <button type="button" class="link-btn" onclick="auditPage(1)" ${currentPage >= totalPages ? "disabled" : ""}>التالي</button>
+      </div>`;
   } catch (e) {
     container.textContent = "تعذّر تحميل سجل التدقيق.";
   }
+}
+
+function auditPage(dir) {
+  auditPagination.offset = Math.max(0, auditPagination.offset + dir * auditPagination.limit);
+  loadAuditLogs();
 }
 
 document.getElementById("refresh-audit-btn").addEventListener("click", loadAuditLogs);
@@ -1009,8 +1027,9 @@ async function loadCandidateJobTitleSuggestions(jobs) {
   const card = document.getElementById("candidate-job-titles-card");
   const listEl = document.getElementById("candidate-job-titles-list");
   try {
-    const res = await apiFetch(`${API_BASE}/applications`);
-    const apps = await res.json();
+    const res = await apiFetch(`${API_BASE}/applications?limit=10000&offset=0`);
+    const data = await res.json();
+    const apps = data.items || [];
 
     const existingTitles = new Set(jobs.map(j => j.title.trim().toLowerCase()));
     const counts = {};
@@ -1055,8 +1074,9 @@ async function loadJobs() {
   const list = document.getElementById("jobs-list");
   list.textContent = "جارٍ التحميل...";
   try {
-    const res = await apiFetch(`${API_BASE}/jobs`);
-    const jobs = await res.json();
+    const res = await apiFetch(`${API_BASE}/jobs?limit=1000&offset=0`);
+    const data = await res.json();
+    const jobs = data.items || [];
 
     await loadCandidateJobTitleSuggestions(jobs);
 
@@ -1190,12 +1210,16 @@ function iqamaStatus(dateStr) {
   return { label: "سارية", cls: "approved" };
 }
 
+let employeesPagination = { offset: 0, limit: 50, total: 0 };
+
 async function loadEmployees() {
   const list = document.getElementById("employees-list");
   list.textContent = "جارٍ التحميل...";
   try {
-    const res = await apiFetch(`${API_BASE}/employees`);
-    const employees = await res.json();
+    const res = await apiFetch(`${API_BASE}/employees?limit=${employeesPagination.limit}&offset=${employeesPagination.offset}`);
+    const data = await res.json();
+    const employees = data.items || [];
+    employeesPagination.total = data.total || 0;
     if (!employees.length) {
       list.textContent = "لا توجد بيانات موظفين بعد.";
       return;
@@ -1221,6 +1245,8 @@ async function loadEmployees() {
         </tr>
       `;
     }).join("");
+    const totalPages = Math.ceil(employeesPagination.total / employeesPagination.limit);
+    const currentPage = Math.floor(employeesPagination.offset / employeesPagination.limit) + 1;
     list.innerHTML = `
       <table class="apps-table">
         <thead><tr>
@@ -1229,6 +1255,11 @@ async function loadEmployees() {
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
+      <div class="pagination" style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:12px;">
+        <button type="button" class="link-btn" onclick="employeesPage(-1)" ${currentPage <= 1 ? "disabled" : ""}>السابق</button>
+        <span class="hint">الصفحة ${currentPage} من ${totalPages || 1}</span>
+        <button type="button" class="link-btn" onclick="employeesPage(1)" ${currentPage >= totalPages ? "disabled" : ""}>التالي</button>
+      </div>
     `;
 
     list.querySelectorAll(".edit-employee-btn").forEach(btn => {
@@ -1250,6 +1281,11 @@ async function loadEmployees() {
   } catch (e) {
     list.textContent = "تعذّر تحميل بيانات الموظفين.";
   }
+}
+
+function employeesPage(dir) {
+  employeesPagination.offset = Math.max(0, employeesPagination.offset + dir * employeesPagination.limit);
+  loadEmployees();
 }
 
 function openEmployeeForm(emp) {
@@ -1607,12 +1643,16 @@ function scorePillHtml(score) {
   return `<span class="score-pill" style="background:${scoreColor(pct)};">${pct}</span>`;
 }
 
+let appsPagination = { offset: 0, limit: 50, total: 0 };
+
 async function loadApplications() {
   const list = document.getElementById("applications-list");
   list.textContent = "جارٍ التحميل...";
   try {
-    const res = await apiFetch(`${API_BASE}/applications`);
-    const apps = await res.json();
+    const res = await apiFetch(`${API_BASE}/applications?limit=${appsPagination.limit}&offset=${appsPagination.offset}`);
+    const data = await res.json();
+    const apps = data.items || [];
+    appsPagination.total = data.total || 0;
     if (!apps.length) {
       list.textContent = "لا توجد طلبات واردة بعد.";
       return;
@@ -1628,6 +1668,8 @@ async function loadApplications() {
         <td><button type="button" class="link-btn view-app-btn">عرض التفاصيل</button></td>
       </tr>
     `).join("");
+    const totalPages = Math.ceil(appsPagination.total / appsPagination.limit);
+    const currentPage = Math.floor(appsPagination.offset / appsPagination.limit) + 1;
     list.innerHTML = `
       <table class="apps-table">
         <thead><tr>
@@ -1635,6 +1677,11 @@ async function loadApplications() {
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
+      <div class="pagination" style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:12px;">
+        <button type="button" class="link-btn" onclick="appsPage(-1)" ${currentPage <= 1 ? "disabled" : ""}>السابق</button>
+        <span class="hint">الصفحة ${currentPage} من ${totalPages || 1}</span>
+        <button type="button" class="link-btn" onclick="appsPage(1)" ${currentPage >= totalPages ? "disabled" : ""}>التالي</button>
+      </div>
     `;
     list.querySelectorAll(".view-app-btn").forEach(btn => {
       btn.addEventListener("click", (e) => {
@@ -1645,6 +1692,11 @@ async function loadApplications() {
   } catch (e) {
     list.textContent = "تعذّر تحميل الطلبات.";
   }
+}
+
+function appsPage(dir) {
+  appsPagination.offset = Math.max(0, appsPagination.offset + dir * appsPagination.limit);
+  loadApplications();
 }
 
 const statusLabels = { pending: "قيد المراجعة", approved: "تمت الموافقة", rejected: "تم الاعتذار" };

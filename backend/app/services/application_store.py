@@ -90,15 +90,13 @@ def update_application(app_id: str, updates: dict) -> dict | None:
         db.close()
 
 
-def list_applications() -> list[dict]:
+def list_applications(limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
     db = SessionLocal()
     try:
-        rows = (
-            db.query(Application)
-            .order_by(desc(Application.submitted_at))
-            .all()
-        )
-        return [_row_to_dict(r) for r in rows]
+        q = db.query(Application)
+        total = q.count()
+        rows = q.order_by(desc(Application.submitted_at)).offset(offset).limit(limit).all()
+        return [_row_to_dict(r) for r in rows], total
     finally:
         db.close()
 
