@@ -104,7 +104,10 @@ def change_password(current_password: str, new_password: str) -> None:
     finally:
         db.close()
 
-    _persist_password_to_env(new_password)
+    try:
+        _persist_password_to_env(new_password)
+    except OSError:
+        pass  # بيئة read-only (مثل Vercel) — التغيير محفوظ في قاعدة البيانات
     settings.ADMIN_PASSWORD = new_password
 
 
