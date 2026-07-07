@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from io import BytesIO
 
 from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Request, Response, UploadFile
+from openpyxl import Workbook
 
 from app.schemas.analysis import (
     AddQuestionRequest,
@@ -63,6 +65,7 @@ from app.services.document_extractor import (
     extract_text_from_file,
     extract_text_from_url,
 )
+from app.services.email_service import send_status_notification
 from app.services.employee_import import EmployeeImportError, generate_template_excel, parse_employees_excel
 from app.services.employee_store import (
     delete_employee,
@@ -298,6 +301,35 @@ def remove_employee(employee_id: str, _admin: None = Depends(require_admin), req
     return {"ok": True}
 
 
+@router.get("/employees/export/excel")
+def export_employees_excel(_admin: None = Depends(require_admin)) -> Response:
+    """تصدير بيانات الموظفين إلى ملف Excel."""
+    items, _ = list_employees(limit=10000, offset=0)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "الموظفون"
+    headers = ["الاسم", "الرقم الوظيفي", "الجنسية", "المسمى الوظيفي", "الجوال", "الراتب", "رقم الإقامة", "تاريخ انتهاء الإقامة"]
+    ws.append(headers)
+    for e in items:
+        ws.append([
+            e.get("full_name", ""),
+            e.get("employee_number", ""),
+            e.get("nationality", ""),
+            e.get("job_title", ""),
+            e.get("phone", ""),
+            e.get("salary"),
+            e.get("iqama_number", ""),
+            e.get("iqama_expiry_date", ""),
+        ])
+    buffer = BytesIO()
+    wb.save(buffer)
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=employees.xlsx"},
+    )
+
+
 @router.get("/employees/import/template", include_in_schema=False)
 def download_employee_template(_admin: None = Depends(require_admin)) -> Response:
     """تنزيل نموذج Excel فارغ بالأعمدة الصحيحة لاستيراد الموظفين."""
@@ -378,11 +410,52 @@ async def submit_application(
 
 @router.get("/applications")
 def get_applications(
-    limit: int = 50, offset: int = 0, _admin: None = Depends(require_admin)
+    limit: int = 50,
+    offset: int = 0,
+    search: str | None = None,
+    status: str | None = None,
+    domain: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    _admin: None = Depends(require_admin),
 ) -> dict:
-    """قائمة الطلبات الواردة — لاستخدام فريق HR فقط."""
-    items, total = list_applications(limit, offset)
+    """قائمة الطلبات الواردة — لاستخدام فريق HR فقط. تدعم البحث والفلترة."""
+    items, total = list_applications(limit, offset, search, status, domain, date_from, date_to)
     return {"items": items, "total": total}
+
+
+@router.get("/applications/export/excel")
+def export_applications_excel(_admin: None = Depends(require_admin)) -> Response:
+    """تصدير جدول الطلبات إلى ملف Excel."""
+    items, _ = list_applications(limit=10000, offset=0)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "الطلبات"
+    headers = ["الاسم", "البريد", "الجوال", "المسمى الوظيفي", "المجال", "الدرجة", "الحالة", "تاريخ التقديم",
+               "موعد المقابلة", "القرار النهائي"]
+    ws.append(headers)
+    status_labels = {"pending": "قيد المراجعة", "approved": "تمت الموافقة", "rejected": "تم الاعتذار"}
+    decision_labels = {"accepted": "تم القبول", "rejected": "تم الرفض"}
+    for a in items:
+        ws.append([
+            a.get("full_name", ""),
+            a.get("email", ""),
+            a.get("phone", ""),
+            a.get("job_title", ""),
+            a.get("domain", ""),
+            a.get("overall_score"),
+            status_labels.get(a.get("status"), a.get("status", "")),
+            a.get("submitted_at", ""),
+            a.get("interview_datetime", ""),
+            decision_labels.get(a.get("hiring_decision"), a.get("hiring_decision", "")),
+        ])
+    buffer = BytesIO()
+    wb.save(buffer)
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=applications.xlsx"},
+    )
 
 
 @router.get("/applications/status", response_model=ApplicationStatusResponse)
@@ -427,6 +500,13 @@ def approve_application(
                {"name": updated.get("full_name"), "interview": req.interview_datetime},
                ip_address=request.client.host if request and request.client else None)
 
+    send_status_notification(
+        updated.get("email", ""),
+        updated.get("full_name", ""),
+        "approved",
+        req.interview_datetime,
+    )
+
     return updated
 
 
@@ -443,6 +523,10 @@ def reject_application(
     log_action("reject", "application", app_id,
                {"name": updated.get("full_name")},
                ip_address=request.client.host if request and request.client else None)
+
+    send_status_notification(
+        updated.get("email", ""), updated.get("full_name", ""), "rejected", req.note_ar
+    )
 
     return updated
 
@@ -750,6 +834,10 @@ def set_hiring_decision(
     log_action(req.decision, "application", app_id,
                {"name": updated.get("full_name")},
                ip_address=request.client.host if request and request.client else None)
+
+    send_status_notification(
+        updated.get("email", ""), updated.get("full_name", ""), req.decision, feedback
+    )
 
     return updated
 

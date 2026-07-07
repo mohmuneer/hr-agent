@@ -52,6 +52,18 @@ class Settings:
     ADMIN_USERNAME: str = os.getenv("HR_ADMIN_USERNAME", "admin")
     ADMIN_PASSWORD: str = os.getenv("HR_ADMIN_PASSWORD", "changeme123")
 
+    # CORS — النطاقات المسموح بها (افصل بينها بفاصلة)
+    CORS_ORIGINS: list[str] = [
+        o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()
+    ]
+
+    # SMTP — إشعارات البريد الإلكتروني للمرشحين (اختياري — إذا تركت فارغة، لن ترسل الإيميلات)
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER: str = os.getenv("SMTP_USER", "")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+    SMTP_FROM: str = os.getenv("SMTP_FROM", "")
+
     @property
     def is_configured(self) -> bool:
         if self.PROVIDER == "gemini":

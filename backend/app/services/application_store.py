@@ -90,10 +90,33 @@ def update_application(app_id: str, updates: dict) -> dict | None:
         db.close()
 
 
-def list_applications(limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
+def list_applications(
+    limit: int = 50,
+    offset: int = 0,
+    search: str | None = None,
+    status: str | None = None,
+    domain: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> tuple[list[dict], int]:
     db = SessionLocal()
     try:
         q = db.query(Application)
+
+        if search:
+            q = q.filter(
+                Application.full_name.ilike(f"%{search}%")
+                | Application.email.ilike(f"%{search}%")
+            )
+        if status:
+            q = q.filter(Application.status == status)
+        if domain:
+            q = q.filter(Application.domain == domain)
+        if date_from:
+            q = q.filter(Application.submitted_at >= date_from)
+        if date_to:
+            q = q.filter(Application.submitted_at <= date_to)
+
         total = q.count()
         rows = q.order_by(desc(Application.submitted_at)).offset(offset).limit(limit).all()
         return [_row_to_dict(r) for r in rows], total

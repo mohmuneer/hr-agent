@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HR Agent — تحليل السير الذاتية</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
   :root {
     --bg: #f7f7f8;
@@ -248,6 +249,8 @@
   }
   button:hover { background: var(--primary-dark); }
   button:disabled { opacity: 0.6; cursor: not-allowed; }
+  button.secondary, a button.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+  button.secondary:hover, a button.secondary:hover { background: var(--border); }
 
   #status { margin-top: 12px; font-size: 0.9rem; color: var(--text-muted); }
   #status.error { color: var(--danger); }
@@ -345,8 +348,18 @@
 
     <section class="content active" id="view-overview">
       <div class="stats-grid" id="overview-stats">جارٍ التحميل...</div>
-      <div class="card">
-        <h3 style="margin-top:0;">الطلبات حسب المجال</h3>
+      <div class="charts-row" style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+        <div class="card">
+          <h3 style="margin-top:0;">توزيع الطلبات حسب الحالة</h3>
+          <canvas id="chart-status"></canvas>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;">توزيع الطلبات حسب المجال</h3>
+          <canvas id="chart-domain"></canvas>
+        </div>
+      </div>
+      <div class="card hidden" id="overview-domain-bars-card">
+        <h3 style="margin-top:0;">الطلبات حسب المجال (تفصيلي)</h3>
         <div id="overview-domains"></div>
       </div>
     </section>
@@ -355,12 +368,29 @@
       <section class="card" id="applications-card">
         <div class="field-header">
           <h2 class="section-title">الطلبات الواردة من صفحة التقديم</h2>
-          <button type="button" id="refresh-apps-btn" class="link-btn">تحديث</button>
+          <div style="display:flex;gap:8px;">
+            <a href="/api/v1/applications/export/excel"><button type="button" class="secondary" style="padding:6px 14px;font-size:0.85rem;">📥 تصدير Excel</button></a>
+            <button type="button" id="refresh-apps-btn" class="link-btn">تحديث</button>
+          </div>
         </div>
         <p class="hint apply-link-hint">
           رابط صفحة التقديم للمرشحين:
           <code id="apply-link"></code>
         </p>
+        <div class="apps-filters" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+          <input type="text" id="filter-search" placeholder="🔍 بحث بالاسم أو البريد..." style="flex:1; min-width:160px;">
+          <select id="filter-status" style="width:auto;">
+            <option value="">كل الحالات</option>
+            <option value="pending">قيد المراجعة</option>
+            <option value="approved">تمت الموافقة</option>
+            <option value="rejected">تم الاعتذار</option>
+          </select>
+          <select id="filter-domain" style="width:auto;">
+            <option value="">كل المجالات</option>
+          </select>
+          <button type="button" id="filter-apply-btn" class="secondary" style="padding:8px 16px;font-size:0.85rem;">تصفية</button>
+          <button type="button" id="filter-reset-btn" class="link-btn" style="padding:8px 0;">إلغاء الفلترة</button>
+        </div>
         <div id="applications-list"></div>
       </section>
 
@@ -428,6 +458,7 @@
         <div class="field-header">
           <h2 class="section-title">بيانات الموظفين</h2>
           <div class="employees-actions">
+            <a href="/api/v1/employees/export/excel"><button type="button" class="secondary">📥 تصدير Excel</button></a>
             <a href="/api/v1/employees/import/template" id="download-template-link"><button type="button" class="secondary">⬇️ تنزيل نموذج Excel</button></a>
             <button type="button" class="secondary" id="import-excel-btn">📥 استيراد من Excel</button>
             <input type="file" id="import-excel-input" accept=".xlsx" class="hidden">
@@ -735,10 +766,76 @@ document.getElementById("sidebar-backdrop").addEventListener("click", () => {
   document.getElementById("sidebar-backdrop").classList.remove("open");
 });
 
+let overviewCharts = { status: null, domain: null };
+
+function destroyOverviewCharts() {
+  Object.values(overviewCharts).forEach(c => { if (c) { c.destroy(); } });
+  overviewCharts = { status: null, domain: null };
+}
+
+function renderStatusChart(byStatus) {
+  const ctx = document.getElementById("chart-status");
+  if (!ctx) return;
+  if (overviewCharts.status) overviewCharts.status.destroy();
+  const labels = { pending: "قيد المراجعة", approved: "تمت الموافقة", rejected: "تم الاعتذار" };
+  const colors = { pending: "#b58900", approved: "#4caf7d", rejected: "#e0715a" };
+  const entries = Object.entries(byStatus).filter(([, v]) => v > 0);
+  overviewCharts.status = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: entries.map(([k]) => labels[k] || k),
+      datasets: [{
+        data: entries.map(([, v]) => v),
+        backgroundColor: entries.map(([k]) => colors[k] || "#888"),
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: "bottom", rtl: true, labels: { font: { size: 12 } } },
+      },
+    },
+  });
+}
+
+function renderDomainChart(byDomain) {
+  const ctx = document.getElementById("chart-domain");
+  if (!ctx) return;
+  if (overviewCharts.domain) overviewCharts.domain.destroy();
+  const entries = Object.entries(byDomain).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) return;
+  const colors = ["#4caf7d", "#2196f3", "#ff9800", "#e91e63", "#9c27b0", "#00bcd4", "#607d8b", "#f44336"];
+  overviewCharts.domain = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: entries.map(([d]) => d),
+      datasets: [{
+        label: "عدد الطلبات",
+        data: entries.map(([, c]) => c),
+        backgroundColor: entries.map((_, i) => colors[i % colors.length]),
+        borderRadius: 4,
+      }],
+    },
+    options: {
+      responsive: true,
+      indexAxis: "y",
+      plugins: {
+        legend: { display: false },
+      },
+      scales: {
+        x: { ticks: { stepSize: 1 } },
+      },
+    },
+  });
+}
+
 async function loadOverview() {
   const grid = document.getElementById("overview-stats");
   const domainCard = document.getElementById("overview-domains");
+  const domainCardSection = document.getElementById("overview-domain-bars-card");
   grid.textContent = "جارٍ التحميل...";
+  destroyOverviewCharts();
   try {
     const res = await apiFetch(`${API_BASE}/applications?limit=10000&offset=0`);
     const data = await res.json();
@@ -807,8 +904,12 @@ async function loadOverview() {
       </div>
     `;
 
+    renderStatusChart(byStatus);
+    renderDomainChart(byDomain);
+
     const maxCount = Math.max(1, ...Object.values(byDomain));
     const domainEntries = Object.entries(byDomain).sort((a, b) => b[1] - a[1]);
+    domainCardSection.classList.remove("hidden");
     domainCard.innerHTML = domainEntries.length
       ? domainEntries.map(([d, c]) => `
           <div class="domain-bar-row">
@@ -1644,12 +1745,24 @@ function scorePillHtml(score) {
 }
 
 let appsPagination = { offset: 0, limit: 50, total: 0 };
+let appsFilters = { search: "", status: "", domain: "" };
 
 async function loadApplications() {
   const list = document.getElementById("applications-list");
   list.textContent = "جارٍ التحميل...";
+  if (document.getElementById("filter-domain").options.length <= 1) {
+    await loadAppsFilterDomains();
+  }
   try {
-    const res = await apiFetch(`${API_BASE}/applications?limit=${appsPagination.limit}&offset=${appsPagination.offset}`);
+    const params = new URLSearchParams({
+      limit: appsPagination.limit,
+      offset: appsPagination.offset,
+    });
+    if (appsFilters.search) params.set("search", appsFilters.search);
+    if (appsFilters.status) params.set("status", appsFilters.status);
+    if (appsFilters.domain) params.set("domain", appsFilters.domain);
+
+    const res = await apiFetch(`${API_BASE}/applications?${params}`);
     const data = await res.json();
     const apps = data.items || [];
     appsPagination.total = data.total || 0;
@@ -1677,10 +1790,13 @@ async function loadApplications() {
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <div class="pagination" style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:12px;">
-        <button type="button" class="link-btn" onclick="appsPage(-1)" ${currentPage <= 1 ? "disabled" : ""}>السابق</button>
-        <span class="hint">الصفحة ${currentPage} من ${totalPages || 1}</span>
-        <button type="button" class="link-btn" onclick="appsPage(1)" ${currentPage >= totalPages ? "disabled" : ""}>التالي</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
+        <span class="hint">إجمالي النتائج: ${appsPagination.total}</span>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <button type="button" class="link-btn" onclick="appsPage(-1)" ${currentPage <= 1 ? "disabled" : ""}>السابق</button>
+          <span class="hint">الصفحة ${currentPage} من ${totalPages || 1}</span>
+          <button type="button" class="link-btn" onclick="appsPage(1)" ${currentPage >= totalPages ? "disabled" : ""}>التالي</button>
+        </div>
       </div>
     `;
     list.querySelectorAll(".view-app-btn").forEach(btn => {
@@ -1698,6 +1814,55 @@ function appsPage(dir) {
   appsPagination.offset = Math.max(0, appsPagination.offset + dir * appsPagination.limit);
   loadApplications();
 }
+
+function applyAppsFilters() {
+  appsFilters.search = document.getElementById("filter-search").value.trim();
+  appsFilters.status = document.getElementById("filter-status").value;
+  appsFilters.domain = document.getElementById("filter-domain").value;
+  appsPagination.offset = 0;
+  loadApplications();
+}
+
+function resetAppsFilters() {
+  document.getElementById("filter-search").value = "";
+  document.getElementById("filter-status").value = "";
+  document.getElementById("filter-domain").value = "";
+  appsFilters = { search: "", status: "", domain: "" };
+  appsPagination.offset = 0;
+  loadApplications();
+}
+
+async function loadAppsFilterDomains() {
+  const sel = document.getElementById("filter-domain");
+  try {
+    const res = await apiFetch(`${API_BASE}/domains`);
+    const data = await res.json();
+    const domains = data.domains || [];
+    const labeled = await Promise.all(domains.map(async d => {
+      try {
+        const cRes = await apiFetch(`${API_BASE}/criteria/${d}`);
+        const cData = await cRes.json();
+        return { key: d, label: cData.domain_ar || d };
+      } catch {
+        return { key: d, label: d };
+      }
+    }));
+    labeled.forEach(({ key, label }) => {
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = label;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    // ignore
+  }
+}
+
+document.getElementById("filter-apply-btn").addEventListener("click", applyAppsFilters);
+document.getElementById("filter-reset-btn").addEventListener("click", resetAppsFilters);
+document.getElementById("filter-search").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") applyAppsFilters();
+});
 
 const statusLabels = { pending: "قيد المراجعة", approved: "تمت الموافقة", rejected: "تم الاعتذار" };
 let currentAppId = null;
