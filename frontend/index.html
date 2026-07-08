@@ -598,10 +598,86 @@
 
     <section class="content" id="view-criteria">
       <div class="card">
-        <h2 class="section-title" style="margin-bottom:8px;">المجالات ومعايير التقييم</h2>
-        <p class="hint">عرض للاطلاع فقط — يعدّلها خبير HR مباشرة عبر ملفات JSON في <code>backend/app/criteria/</code> بدون حاجة لمبرمج.</p>
+        <div class="field-header">
+          <h2 class="section-title">المجالات ومعايير التقييم</h2>
+          <button type="button" id="add-domain-btn">+ إضافة مجال</button>
+        </div>
+        <p class="hint">إدارة المجالات ومعايير التقييم الخاصة بكل مجال. مجموع أوزان المعايير يجب أن يساوي 100.</p>
       </div>
       <div id="criteria-view-body">جارٍ التحميل...</div>
+
+      <div class="card hidden" id="domain-form-card">
+        <h3 id="domain-form-title" style="margin-top:0;">إضافة مجال</h3>
+        <input type="hidden" id="domain-form-id">
+        <div class="row">
+          <div class="field">
+            <label for="domain-key-input">المعرف (Key) — أحرف إنجليزية فقط</label>
+            <input type="text" id="domain-key-input" placeholder="مثال: accounting">
+          </div>
+          <div class="field">
+            <label for="domain-name-input">الاسم بالعربية</label>
+            <input type="text" id="domain-name-input" placeholder="مثال: المحاسبة">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="domain-version-input">الإصدار (اختياري)</label>
+            <input type="text" id="domain-version-input" value="0.1.0">
+          </div>
+          <div class="field">
+            <label for="domain-weights-input">مجموع الأوزان</label>
+            <input type="number" id="domain-weights-input" value="100" min="1" max="100">
+          </div>
+        </div>
+        <div class="field">
+          <label for="domain-note-input">ملاحظات (اختياري)</label>
+          <textarea id="domain-note-input" rows="2" placeholder="ملاحظات حول المجال..."></textarea>
+        </div>
+        <div class="interview-actions">
+          <button type="button" id="save-domain-btn">حفظ</button>
+          <button type="button" class="secondary" id="cancel-domain-btn">إلغاء</button>
+        </div>
+        <div id="domain-form-status" class="hint"></div>
+      </div>
+
+      <div class="card hidden" id="criterion-form-card">
+        <h3 id="criterion-form-title" style="margin-top:0;">إضافة معيار</h3>
+        <input type="hidden" id="criterion-form-id">
+        <input type="hidden" id="criterion-form-domain-id">
+        <div class="row">
+          <div class="field">
+            <label for="criterion-key-input">المعرف (Key)</label>
+            <input type="text" id="criterion-key-input" placeholder="مثال: education">
+          </div>
+          <div class="field">
+            <label for="criterion-label-input">الاسم بالعربية</label>
+            <input type="text" id="criterion-label-input" placeholder="مثال: المؤهل العلمي">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="criterion-weight-input">الوزن (0-100)</label>
+            <input type="number" id="criterion-weight-input" min="0" max="100" value="10">
+          </div>
+          <div class="field">
+            <label for="criterion-order-input">الترتيب</label>
+            <input type="number" id="criterion-order-input" min="0" value="0">
+          </div>
+        </div>
+        <div class="field">
+          <label for="criterion-desc-input">الوصف (اختياري)</label>
+          <textarea id="criterion-desc-input" rows="2" placeholder="وصف المعيار..."></textarea>
+        </div>
+        <div class="field">
+          <label for="criterion-signals-input">مؤشرات البحث (اختياري — كل مؤشر في سطر)</label>
+          <textarea id="criterion-signals-input" rows="3" placeholder="بكالوريوس محاسبة&#10;CPA&#10;IFRS"></textarea>
+        </div>
+        <div class="interview-actions">
+          <button type="button" id="save-criterion-btn">حفظ</button>
+          <button type="button" class="secondary" id="cancel-criterion-btn">إلغاء</button>
+        </div>
+        <div id="criterion-form-status" class="hint"></div>
+      </div>
     </section>
 
     <section class="content" id="view-audit">
@@ -927,37 +1003,214 @@ async function loadOverview() {
 async function loadCriteriaView() {
   const container = document.getElementById("criteria-view-body");
   container.textContent = "جارٍ التحميل...";
+  document.getElementById("domain-form-card")?.classList.add("hidden");
+  document.getElementById("criterion-form-card")?.classList.add("hidden");
   try {
     const res = await apiFetch(`${API_BASE}/domains`);
     const data = await res.json();
-    const domains = data.domains || [];
+    const domains = data.items || [];
 
-    const cards = await Promise.all(domains.map(async d => {
-      const cRes = await apiFetch(`${API_BASE}/criteria/${d}`);
+    const cards = await Promise.all((domains || []).map(async d => {
+      const cRes = await apiFetch(`${API_BASE}/criteria/${d.key}`);
       const cData = await cRes.json();
       const rows = (cData.criteria || []).map(c => `
         <tr>
           <td>${c.label_ar}</td>
           <td>${c.weight}%</td>
           <td class="hint">${c.description_ar || ""}</td>
+          <td>
+            <button type="button" class="link-btn edit-criterion-btn"
+              data-domain-id="${d.id}" data-criterion='${JSON.stringify(c).replace(/'/g, "&#39;")}'
+              style="margin-left:8px;">تعديل</button>
+            <button type="button" class="link-btn delete-criterion-btn"
+              data-criterion-id="${c.id}" style="color:var(--danger);">حذف</button>
+          </td>
         </tr>
       `).join("");
       return `
-        <div class="card">
-          <h3 style="margin-top:0;">${cData.domain_ar || d} <span class="hint">(${d})</span></h3>
+        <div class="card" data-domain-id="${d.id}">
+          <div class="field-header">
+            <h3 style="margin:0;">${cData.domain_ar || d.key} <span class="hint">(${d.key})</span></h3>
+            <div style="display:flex;gap:8px;">
+              <button type="button" class="link-btn edit-domain-btn"
+                data-domain-id="${d.id}" data-domain='${JSON.stringify({domain_ar: d.domain_ar, key: d.key, version: d.version, note: d.note, weights_sum_to: d.weights_sum_to}).replace(/'/g, "&#39;")}'>تعديل</button>
+              <button type="button" class="link-btn add-criterion-btn"
+                data-domain-id="${d.id}" style="color:var(--good);">+ إضافة معيار</button>
+              <button type="button" class="link-btn delete-domain-btn"
+                data-domain-id="${d.id}" data-domain-name="${d.domain_ar || d.key}" style="color:var(--danger);">حذف المجال</button>
+            </div>
+          </div>
+          <p class="hint">${cData.note || ""}</p>
           <table class="apps-table">
-            <thead><tr><th>المعيار</th><th>الوزن</th><th>الوصف</th></tr></thead>
+            <thead><tr><th>المعيار</th><th>الوزن</th><th>الوصف</th><th>إجراءات</th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
+          ${(cData.criteria || []).length === 0 ? '<p class="hint" style="margin-top:10px;">لا توجد معايير بعد.</p>' : ""}
         </div>
       `;
     }));
 
-    container.innerHTML = cards.join("") || '<p class="hint">لا توجد مجالات معرّفة بعد.</p>';
+    container.innerHTML = cards.join("") || '<p class="hint">لا توجد مجالات معرّفة بعد. أضف مجالاً جديداً.</p>';
+
+    // Event listeners for domain actions
+    document.querySelectorAll(".edit-domain-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const domain = JSON.parse(btn.dataset.domain);
+        openDomainForm(btn.dataset.domainId, domain);
+      });
+    });
+    document.querySelectorAll(".delete-domain-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (confirm(`هل تريد حذف المجال "${btn.dataset.domainName}" وجميع معاييره؟`)) {
+          try {
+            await apiFetch(`${API_BASE}/domains/${btn.dataset.domainId}`, { method: "DELETE" });
+            loadCriteriaView();
+          } catch (e) { alert("تعذّر حذف المجال."); }
+        }
+      });
+    });
+    document.querySelectorAll(".add-criterion-btn").forEach(btn => {
+      btn.addEventListener("click", () => openCriterionForm(btn.dataset.domainId));
+    });
+    document.querySelectorAll(".edit-criterion-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const criterion = JSON.parse(btn.dataset.criterion);
+        openCriterionForm(btn.dataset.domainId, criterion);
+      });
+    });
+    document.querySelectorAll(".delete-criterion-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (confirm("هل تريد حذف هذا المعيار؟")) {
+          try {
+            await apiFetch(`${API_BASE}/criteria/${btn.dataset.criterionId}`, { method: "DELETE" });
+            loadCriteriaView();
+          } catch (e) { alert("تعذّر حذف المعيار."); }
+        }
+      });
+    });
   } catch (e) {
     container.textContent = "تعذّر تحميل المعايير.";
   }
 }
+
+// --- Domain form ---
+function openDomainForm(domainId, domain) {
+  document.getElementById("domain-form-card").classList.remove("hidden");
+  document.getElementById("domain-form-id").value = domainId || "";
+  document.getElementById("domain-form-title").textContent = domainId ? "تعديل المجال" : "إضافة مجال";
+  document.getElementById("domain-key-input").value = domain?.key || "";
+  document.getElementById("domain-key-input").disabled = !!domainId;
+  document.getElementById("domain-name-input").value = domain?.domain_ar || "";
+  document.getElementById("domain-version-input").value = domain?.version || "0.1.0";
+  document.getElementById("domain-weights-input").value = domain?.weights_sum_to || 100;
+  document.getElementById("domain-note-input").value = domain?.note || "";
+  document.getElementById("domain-form-status").textContent = "";
+}
+
+document.getElementById("save-domain-btn")?.addEventListener("click", async () => {
+  const domainId = document.getElementById("domain-form-id").value;
+  const statusEl = document.getElementById("domain-form-status");
+  const key = document.getElementById("domain-key-input").value.trim();
+  const domain_ar = document.getElementById("domain-name-input").value.trim();
+  const version = document.getElementById("domain-version-input").value.trim();
+  const note = document.getElementById("domain-note-input").value.trim();
+  const weights_sum_to = parseInt(document.getElementById("domain-weights-input").value);
+
+  if (!key || !domain_ar) { statusEl.textContent = "الحقول المطلوبة: المعرف والاسم."; return; }
+  statusEl.textContent = "جارٍ الحفظ...";
+
+  try {
+    if (domainId) {
+      await apiFetch(`${API_BASE}/domains/${domainId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain_ar, version, note, weights_sum_to }),
+      });
+    } else {
+      const existing = await (await apiFetch(`${API_BASE}/domains`)).json();
+      if ((existing.items || []).some(d => d.key === key)) {
+        statusEl.textContent = `المجال "${key}" موجود مسبقاً.`;
+        return;
+      }
+      await apiFetch(`${API_BASE}/domains`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, domain_ar, version, note, weights_sum_to, criteria: [] }),
+      });
+    }
+    document.getElementById("domain-form-card").classList.add("hidden");
+    loadCriteriaView();
+  } catch (e) {
+    const msg = await e.response?.text().catch(() => "تعذّر الحفظ.");
+    statusEl.textContent = msg;
+  }
+});
+
+document.getElementById("cancel-domain-btn")?.addEventListener("click", () => {
+  document.getElementById("domain-form-card").classList.add("hidden");
+});
+
+document.getElementById("add-domain-btn")?.addEventListener("click", () => openDomainForm(null, null));
+
+// --- Criterion form ---
+function openCriterionForm(domainId, criterion) {
+  document.getElementById("criterion-form-card").classList.remove("hidden");
+  document.getElementById("criterion-form-id").value = criterion?.id || "";
+  document.getElementById("criterion-form-domain-id").value = domainId;
+  document.getElementById("criterion-form-title").textContent = criterion ? "تعديل المعيار" : "إضافة معيار";
+  document.getElementById("criterion-key-input").value = criterion?.key || "";
+  document.getElementById("criterion-key-input").disabled = !!criterion;
+  document.getElementById("criterion-label-input").value = criterion?.label_ar || "";
+  document.getElementById("criterion-weight-input").value = criterion?.weight || 10;
+  document.getElementById("criterion-order-input").value = criterion?.sort_order || 0;
+  document.getElementById("criterion-desc-input").value = criterion?.description_ar || "";
+  document.getElementById("criterion-signals-input").value = (criterion?.signals || []).join("\n");
+  document.getElementById("criterion-form-status").textContent = "";
+}
+
+document.getElementById("save-criterion-btn")?.addEventListener("click", async () => {
+  const criterionId = document.getElementById("criterion-form-id").value;
+  const domainId = document.getElementById("criterion-form-domain-id").value;
+  const statusEl = document.getElementById("criterion-form-status");
+  const key = document.getElementById("criterion-key-input").value.trim();
+  const label_ar = document.getElementById("criterion-label-input").value.trim();
+  const weight = parseInt(document.getElementById("criterion-weight-input").value);
+  const sort_order = parseInt(document.getElementById("criterion-order-input").value) || 0;
+  const description_ar = document.getElementById("criterion-desc-input").value.trim();
+  const signalsRaw = document.getElementById("criterion-signals-input").value.trim();
+  const signals = signalsRaw ? signalsRaw.split("\n").map(s => s.trim()).filter(Boolean) : [];
+
+  if (!key || !label_ar || isNaN(weight)) {
+    statusEl.textContent = "الحقول المطلوبة: المعرف والاسم والوزن.";
+    return;
+  }
+  statusEl.textContent = "جارٍ الحفظ...";
+
+  try {
+    if (criterionId) {
+      await apiFetch(`${API_BASE}/criteria/${criterionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, label_ar, weight, sort_order, description_ar, signals }),
+      });
+    } else {
+      await apiFetch(`${API_BASE}/domains/${domainId}/criteria`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, label_ar, weight, sort_order, description_ar, signals }),
+      });
+    }
+    document.getElementById("criterion-form-card").classList.add("hidden");
+    loadCriteriaView();
+  } catch (e) {
+    const msg = await e.response?.text().catch(() => "تعذّر الحفظ.");
+    statusEl.textContent = msg;
+  }
+});
+
+document.getElementById("cancel-criterion-btn")?.addEventListener("click", () => {
+  document.getElementById("criterion-form-card").classList.add("hidden");
+});
 
 let auditPagination = { offset: 0, limit: 50, total: 0 };
 
@@ -982,6 +1235,7 @@ async function loadAuditLogs() {
     };
     const typeLabels = {
       auth: "المصادقة", application: "طلب تقديم", job: "وظيفة", employee: "موظف",
+      domain: "مجال", criterion: "معيار",
     };
     const totalPages = Math.ceil(auditPagination.total / auditPagination.limit);
     const currentPage = Math.floor(auditPagination.offset / auditPagination.limit) + 1;

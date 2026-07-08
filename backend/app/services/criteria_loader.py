@@ -1,4 +1,4 @@
-"""تحميل معايير التقييم من ملفات JSON والتحقق من صحتها.
+"""تحميل معايير التقييم — يقرأ من قاعدة البيانات أولاً، مع احتفاظ بدعم ملفات JSON.
 
 هذه الطبقة تفصل المعايير عن الكود بحيث يقدر خبير HR يعدّل الملفات
 مباشرة، أو نربطها لاحقاً بمخرجات dataset — بلا لمس الكود.
@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 
 from app.core.config import get_settings
+from app.services.criteria_service import get_domain_by_key, list_domains
 
 
 class CriteriaError(Exception):
@@ -18,16 +19,42 @@ class CriteriaError(Exception):
 def load_criteria(domain: str | None = None) -> dict:
     settings = get_settings()
     domain = domain or settings.ACTIVE_DOMAIN
-    path: Path = settings.CRITERIA_DIR / f"{domain}.json"
 
+    # حاول القراءة من قاعدة البيانات أولاً
+    db_data = get_domain_by_key(domain)
+    if db_data:
+        return _db_to_json_format(db_data)
+
+    # fallback إلى ملف JSON
+    path: Path = settings.CRITERIA_DIR / f"{domain}.json"
     if not path.exists():
-        raise CriteriaError(f"لا توجد ملف معايير للمجال: {domain} ({path})")
+        raise CriteriaError(f"لا توجد معايير للمجال: {domain}")
 
     with path.open(encoding="utf-8") as f:
         data = json.load(f)
 
     _validate(data, domain)
     return data
+
+
+def _db_to_json_format(db_data: dict) -> dict:
+    return {
+        "domain": db_data["key"],
+        "domain_ar": db_data["domain_ar"],
+        "version": db_data.get("version", "0.1.0"),
+        "note": db_data.get("note"),
+        "weights_sum_to": db_data.get("weights_sum_to", 100),
+        "criteria": [
+            {
+                "key": c["key"],
+                "label_ar": c["label_ar"],
+                "weight": c["weight"],
+                "description_ar": c.get("description_ar"),
+                "signals": c.get("signals", []),
+            }
+            for c in db_data.get("criteria", [])
+        ],
+    }
 
 
 def _validate(data: dict, domain: str) -> None:
@@ -51,5 +78,14 @@ def _validate(data: dict, domain: str) -> None:
 
 
 def list_available_domains() -> list[str]:
+    # حاول من قاعدة البيانات أولاً
+    try:
+        domains = list_domains()
+        if domains:
+            return sorted(d["key"] for d in domains)
+    except Exception:
+        pass
+
+    # fallback إلى ملفات JSON
     settings = get_settings()
     return sorted(p.stem for p in settings.CRITERIA_DIR.glob("*.json"))

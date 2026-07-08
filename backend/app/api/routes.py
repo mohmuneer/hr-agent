@@ -39,6 +39,14 @@ from app.schemas.employees import (
     EmployeeUpdateRequest,
     ImportResult,
 )
+from app.schemas.criteria import (
+    CriterionCreate,
+    CriterionResponse,
+    CriterionUpdate,
+    DomainCreate,
+    DomainResponse,
+    DomainUpdate,
+)
 from app.schemas.jobs import Job, JobCreateRequest, JobUpdateRequest
 from app.services.application_store import (
     get_application,
@@ -59,6 +67,17 @@ from app.services.criteria_loader import (
     CriteriaError,
     list_available_domains,
     load_criteria,
+)
+from app.services.criteria_service import (
+    add_criterion,
+    create_domain,
+    delete_criterion,
+    delete_domain,
+    get_domain,
+    get_domain_by_key,
+    list_domains,
+    update_criterion,
+    update_domain,
 )
 from app.services.cv_analyzer import AnalysisError, analyze_cv
 from app.services.document_extractor import (
@@ -200,10 +219,17 @@ def extract_url(req: ExtractUrlRequest, _admin: None = Depends(require_admin)) -
     return ExtractedText(text=text)
 
 
+# --- المجالات ومعايير التقييم (CRUD كامل) ---
+
+
 @router.get("/domains")
 def get_domains() -> dict:
     """المجالات المتاحة حالياً."""
-    return {"domains": list_available_domains()}
+    domains = list_domains()
+    return {
+        "domains": [d["key"] for d in domains],
+        "items": domains,
+    }
 
 
 @router.get("/criteria/{domain}")
@@ -213,6 +239,101 @@ def get_criteria(domain: str) -> dict:
         return load_criteria(domain)
     except CriteriaError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/domains", response_model=DomainResponse)
+def create_domain_endpoint(
+    req: DomainCreate,
+    _admin: None = Depends(require_admin),
+    request: Request = None,
+) -> dict:
+    """إضافة مجال جديد مع معاييره."""
+    try:
+        result = create_domain(req.model_dump())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    log_action("create", "domain", result["id"], {"key": req.key, "domain_ar": req.domain_ar},
+               ip_address=request.client.host if request and request.client else None)
+    return result
+
+
+@router.put("/domains/{domain_id}", response_model=DomainResponse)
+def update_domain_endpoint(
+    domain_id: str,
+    req: DomainUpdate,
+    _admin: None = Depends(require_admin),
+    request: Request = None,
+) -> dict:
+    """تعديل مجال (الاسم، الملاحظات، المعايير)."""
+    updates = {k: v for k, v in req.model_dump().items() if v is not None}
+    result = update_domain(domain_id, updates)
+    if result is None:
+        raise HTTPException(status_code=404, detail="المجال غير موجود")
+    log_action("update", "domain", domain_id, {"key": result["key"]},
+               ip_address=request.client.host if request and request.client else None)
+    return result
+
+
+@router.delete("/domains/{domain_id}")
+def delete_domain_endpoint(
+    domain_id: str,
+    _admin: None = Depends(require_admin),
+    request: Request = None,
+) -> dict:
+    """حذف مجال وجميع معاييره."""
+    if not delete_domain(domain_id):
+        raise HTTPException(status_code=404, detail="المجال غير موجود")
+    log_action("delete", "domain", domain_id,
+               ip_address=request.client.host if request and request.client else None)
+    return {"ok": True}
+
+
+@router.post("/domains/{domain_id}/criteria", response_model=CriterionResponse)
+def add_criterion_endpoint(
+    domain_id: str,
+    req: CriterionCreate,
+    _admin: None = Depends(require_admin),
+    request: Request = None,
+) -> dict:
+    """إضافة معيار جديد إلى مجال."""
+    try:
+        result = add_criterion(domain_id, req.model_dump())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    log_action("create", "criterion", result["id"], {"key": req.key, "domain_id": domain_id},
+               ip_address=request.client.host if request and request.client else None)
+    return result
+
+
+@router.put("/criteria/{criterion_id}", response_model=CriterionResponse)
+def update_criterion_endpoint(
+    criterion_id: str,
+    req: CriterionUpdate,
+    _admin: None = Depends(require_admin),
+    request: Request = None,
+) -> dict:
+    """تعديل معيار."""
+    updates = {k: v for k, v in req.model_dump().items() if v is not None}
+    result = update_criterion(criterion_id, updates)
+    if result is None:
+        raise HTTPException(status_code=404, detail="المعيار غير موجود")
+    log_action("update", "criterion", criterion_id,
+               ip_address=request.client.host if request and request.client else None)
+    return result
+
+
+@router.delete("/criteria/{criterion_id}")
+def delete_criterion_endpoint(
+    criterion_id: str,
+    _admin: None = Depends(require_admin),
+    request: Request = None,
+) -> dict:
+    """حذف معيار."""
+    if not delete_criterion(criterion_id):
+        raise HTTPException(status_code=404, detail="المعيار غير موجود")
+    log_action("delete", "criterion", criterion_id,
+               ip_address=request.client.host if request and request.client else None)
+    return {"ok": True}
 
 
 @router.get("/jobs")

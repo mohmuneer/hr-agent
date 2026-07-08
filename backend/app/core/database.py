@@ -29,3 +29,8 @@ def init_db():
     import app.models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+
+    # ترحيل بيانات المعايير من ملفات JSON إلى DB إذا كانت فارغة
+    from app.services.criteria_service import seed_from_json  # noqa: F811
+
+    seed_from_json()
