@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 from app.services.llm_client import generate_text, LLMError
 from app.services.agent_tools import TOOL_DEFINITIONS, execute_tool
+from app.services.json_utils import extract_json, JsonExtractionError
 from app.schemas.agent import AgentChatResponse, ToolAction
 
 from app.core.config import get_settings
@@ -112,8 +113,8 @@ def process_message(message: str, conv_id: str | None = None) -> AgentChatRespon
         )
 
     try:
-        parsed = json.loads(raw_response)
-    except json.JSONDecodeError:
+        parsed = extract_json(raw_response)
+    except JsonExtractionError:
         text = raw_response.strip()
         history.append({"role": "assistant", "content": text, "timestamp": datetime.now(timezone.utc).isoformat()})
         return AgentChatResponse(
