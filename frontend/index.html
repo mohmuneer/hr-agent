@@ -2109,6 +2109,7 @@ async function loadApplications() {
     }
     const rows = apps.map(a => `
       <tr data-id="${a.id}">
+        <td><input type="checkbox" class="app-checkbox" value="${a.id}"></td>
         <td>${a.full_name}</td>
         <td>${a.job_title}</td>
         <td>${a.domain || "-"}</td>
@@ -2121,8 +2122,14 @@ async function loadApplications() {
     const totalPages = Math.ceil(appsPagination.total / appsPagination.limit);
     const currentPage = Math.floor(appsPagination.offset / appsPagination.limit) + 1;
     list.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button type="button" id="delete-selected-apps-btn" class="secondary" style="padding:6px 14px;font-size:0.85rem;color:var(--danger);border-color:var(--danger);" disabled>🗑️ حذف المحدد</button>
+        </div>
+      </div>
       <table class="apps-table">
         <thead><tr>
+          <th style="width:32px;"><input type="checkbox" id="select-all-apps"></th>
           <th>الاسم</th><th>المسمى الوظيفي</th><th>المجال</th><th>الدرجة</th><th>الحالة</th><th>التاريخ</th><th></th>
         </tr></thead>
         <tbody>${rows}</tbody>
@@ -2136,14 +2143,56 @@ async function loadApplications() {
         </div>
       </div>
     `;
+
+    const selectAll = document.getElementById("select-all-apps");
+    if (selectAll) {
+      selectAll.addEventListener("change", () => {
+        list.querySelectorAll(".app-checkbox").forEach(cb => cb.checked = selectAll.checked);
+        updateDeleteButtonState();
+      });
+    }
+    list.querySelectorAll(".app-checkbox").forEach(cb => {
+      cb.addEventListener("change", updateDeleteButtonState);
+    });
     list.querySelectorAll(".view-app-btn").forEach(btn => {
       btn.addEventListener("click", (e) => {
         const id = e.target.closest("tr").dataset.id;
         showApplicationDetail(id);
       });
     });
+    const deleteBtn = document.getElementById("delete-selected-apps-btn");
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", deleteSelectedApps);
+    }
   } catch (e) {
     list.textContent = "تعذّر تحميل الطلبات.";
+  }
+}
+
+function updateDeleteButtonState() {
+  const list = document.getElementById("applications-list");
+  const deleteBtn = document.getElementById("delete-selected-apps-btn");
+  if (!deleteBtn) return;
+  const anyChecked = list.querySelector(".app-checkbox:checked");
+  deleteBtn.disabled = !anyChecked;
+}
+
+async function deleteSelectedApps() {
+  const list = document.getElementById("applications-list");
+  const checked = list.querySelectorAll(".app-checkbox:checked");
+  if (!checked.length) return;
+  const ids = Array.from(checked).map(cb => cb.value);
+  if (!confirm(`هل أنت متأكد من حذف (${ids.length}) طلب؟ هذا الإجراء لا يمكن التراجع عنه.`)) return;
+  try {
+    const res = await apiFetch(`${API_BASE}/applications/batch-delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(ids),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    loadApplications();
+  } catch (e) {
+    alert("فشل الحذف: " + e.message);
   }
 }
 

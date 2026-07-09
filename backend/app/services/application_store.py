@@ -133,3 +133,26 @@ def get_application(app_id: str) -> dict | None:
         return _row_to_dict(row)
     finally:
         db.close()
+
+
+def delete_application(app_id: str) -> bool:
+    db = SessionLocal()
+    try:
+        row = db.query(Application).filter(Application.id == app_id).first()
+        if row is None:
+            return False
+        db.delete(row)
+        db.commit()
+        return True
+    finally:
+        db.close()
+
+
+def delete_applications_batch(app_ids: list[str]) -> int:
+    db = SessionLocal()
+    try:
+        deleted = db.query(Application).filter(Application.id.in_(app_ids)).delete(synchronize_session=False)
+        db.commit()
+        return deleted
+    finally:
+        db.close()

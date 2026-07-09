@@ -49,6 +49,8 @@ from app.schemas.criteria import (
 )
 from app.schemas.jobs import Job, JobCreateRequest, JobUpdateRequest
 from app.services.application_store import (
+    delete_application,
+    delete_applications_batch,
     get_application,
     list_applications,
     save_application,
@@ -601,6 +603,33 @@ def get_application_detail(app_id: str, _admin: None = Depends(require_admin)) -
     if record is None:
         raise HTTPException(status_code=404, detail="الطلب غير موجود")
     return record
+
+
+@router.delete("/applications/{app_id}")
+def delete_application_endpoint(
+    app_id: str,
+    _admin: None = Depends(require_admin),
+    request: Request = None,
+) -> dict:
+    """حذف طلب تقديم واحد."""
+    if not delete_application(app_id):
+        raise HTTPException(status_code=404, detail="الطلب غير موجود")
+    log_action("delete", "application", app_id,
+               ip_address=request.client.host if request and request.client else None)
+    return {"ok": True}
+
+
+@router.post("/applications/batch-delete")
+def batch_delete_applications(
+    ids: list[str],
+    _admin: None = Depends(require_admin),
+    request: Request = None,
+) -> dict:
+    """حذف مجموعة من الطلبات دفعة واحدة."""
+    count = delete_applications_batch(ids)
+    log_action("batch_delete", "application", details={"count": count, "ids": ids},
+               ip_address=request.client.host if request and request.client else None)
+    return {"ok": True, "deleted": count}
 
 
 @router.post("/applications/{app_id}/approve", response_model=ApplicationDetail)

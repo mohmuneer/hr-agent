@@ -11,7 +11,13 @@ class Base(DeclarativeBase):
     pass
 
 
-engine = create_engine(get_settings().DATABASE_URL, pool_pre_ping=True)
+_db_url = get_settings().DATABASE_URL
+if "?" not in _db_url:
+    _db_url += "?client_encoding=utf8"
+elif "client_encoding" not in _db_url:
+    _db_url += "&client_encoding=utf8"
+
+engine = create_engine(_db_url, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine)
 
 
