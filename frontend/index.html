@@ -316,6 +316,58 @@
   }
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
   .modal-actions button.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+
+  /* AI Command Center — Chat Interface */
+  .agent-layout { display: flex; flex-direction: column; height: calc(100vh - 80px); max-height: calc(100vh - 80px); }
+  .agent-chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 8px 4px; scroll-behavior: smooth; }
+  .agent-msg { display: flex; gap: 10px; max-width: 85%; animation: fadeIn 0.3s ease; }
+  .agent-msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .agent-msg.assistant { align-self: flex-start; }
+  .agent-msg .avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+  .agent-msg.user .avatar { background: var(--primary); color: #fff; }
+  .agent-msg.assistant .avatar { background: var(--bg); border: 1px solid var(--border); }
+  .agent-msg .bubble { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; font-size: 0.92rem; line-height: 1.6; white-space: pre-wrap; }
+  .agent-msg.user .bubble { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .agent-msg .bubble .msg-time { font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; display: block; }
+  .agent-msg.user .bubble .msg-time { color: rgba(255,255,255,0.7); }
+  .agent-input-area { display: flex; gap: 8px; padding: 10px 0; border-top: 1px solid var(--border); margin-top: 8px; }
+  .agent-input-area textarea { flex: 1; min-height: 44px; max-height: 120px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family: inherit; font-size: 0.92rem; resize: none; }
+  .agent-input-area textarea:focus { outline: none; border-color: var(--primary); }
+  .agent-input-area button { padding: 10px 20px; border-radius: 10px; align-self: flex-end; }
+  .agent-input-area button:disabled { opacity: 0.5; }
+
+  /* Confirmation Panel */
+  .agent-confirm { background: var(--surface); border: 1px solid var(--primary); border-radius: 12px; padding: 14px; margin: 6px 0; }
+  .agent-confirm .confirm-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 6px; color: var(--primary); }
+  .agent-confirm .confirm-desc { font-size: 0.88rem; color: var(--text-muted); margin-bottom: 8px; }
+  .agent-confirm .confirm-params { font-size: 0.85rem; background: var(--bg); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+  .agent-confirm .confirm-params .param-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid var(--border); }
+  .agent-confirm .confirm-params .param-row:last-child { border-bottom: none; }
+  .agent-confirm .confirm-params .param-key { color: var(--text-muted); }
+  .agent-confirm .confirm-params .param-val { font-weight: 500; }
+  .agent-confirm .confirm-actions { display: flex; gap: 8px; }
+  .agent-confirm .confirm-actions button { flex: 1; padding: 8px; font-size: 0.88rem; }
+  .agent-confirm .confirm-actions .exec-btn { background: var(--primary); }
+  .agent-confirm .confirm-actions .cancel-btn { background: var(--danger); }
+
+  /* Result Panel */
+  .agent-result { background: var(--surface); border: 1px solid var(--good); border-radius: 12px; padding: 14px; margin: 6px 0; }
+  .agent-result .result-title { font-weight: 700; font-size: 0.95rem; color: var(--good); margin-bottom: 6px; }
+  .agent-result .result-body { font-size: 0.88rem; line-height: 1.7; }
+  .agent-result .result-body .stat-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border); }
+
+  /* Suggestion chips */
+  .agent-suggestions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .agent-suggestions .chip { background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 5px 14px; font-size: 0.8rem; cursor: pointer; color: var(--text-muted); white-space: nowrap; }
+  .agent-suggestions .chip:hover { border-color: var(--primary); color: var(--primary); }
+
+  /* Typing indicator */
+  .typing-dots { display: flex; gap: 4px; padding: 8px 0; }
+  .typing-dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); animation: typingBounce 1.4s infinite ease-in-out both; }
+  .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+  .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+  @keyframes typingBounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 </style>
 </head>
 <body>
@@ -333,6 +385,7 @@
       <button type="button" class="nav-item" data-view="criteria">⚙️ المجالات والمعايير</button>
       <button type="button" class="nav-item" data-view="audit">📋 سجل التدقيق</button>
       <button type="button" class="nav-item" data-view="system">🔧 النظام</button>
+      <button type="button" class="nav-item" data-view="agent">🤖 مركز القيادة الذكي</button>
     </nav>
     <div class="sidebar-footer">
       <a href="/apply" target="_blank">🔗 صفحة التقديم للمرشحين</a>
@@ -694,6 +747,34 @@
     <section class="content" id="view-system">
       <div id="system-view-body" class="card">جارٍ التحميل...</div>
     </section>
+
+    <section class="content" id="view-agent">
+      <div class="card agent-layout">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:4px;">
+          <div><strong>🤖 مركز القيادة الذكي</strong><span style="font-size:0.8rem;color:var(--text-muted);margin-right:8px;">AI Command Center</span></div>
+          <button type="button" id="agent-clear-btn" class="link-btn" style="font-size:0.8rem;">مسح المحادثة</button>
+        </div>
+        <div class="agent-chat" id="agent-chat">
+          <div class="agent-msg assistant">
+            <div class="avatar">🤖</div>
+            <div class="bubble">
+              👋 مرحباً! أنا مساعد النظام الذكي.<br>
+              يمكنني مساعدتك في:<br>
+              • عرض وإدارة الموظفين<br>
+              • عرض طلبات التوظيف<br>
+              • إرسال الإشعارات<br>
+              • إحصائيات وتقارير<br><br>
+              كيف يمكنني مساعدتك؟
+              <span class="msg-time">الآن</span>
+            </div>
+          </div>
+        </div>
+        <div class="agent-input-area">
+          <textarea id="agent-input" rows="1" placeholder="اكتب أمرك باللغة العربية..." style="flex:1;"></textarea>
+          <button type="button" id="agent-send-btn">إرسال</button>
+        </div>
+      </div>
+    </section>
   </div>
 </div>
 
@@ -810,6 +891,7 @@ const viewTitles = {
   criteria: "المجالات والمعايير",
   audit: "سجل التدقيق",
   system: "النظام",
+  agent: "مركز القيادة الذكي",
 };
 
 function switchView(view) {
@@ -827,6 +909,7 @@ function switchView(view) {
   if (view === "criteria") loadCriteriaView();
   if (view === "audit") loadAuditLogs();
   if (view === "system") loadSystemView();
+  if (view === "agent") { /* chat is always ready */ }
 }
 
 document.querySelectorAll(".nav-item").forEach(btn => {
@@ -2814,6 +2897,325 @@ document.getElementById("close-detail-btn").addEventListener("click", () => {
 });
 
 loadOverview();
+
+// ═══════════════════════════════════════════════════════
+// AI Command Center — Chat Interface
+// ═══════════════════════════════════════════════════════
+
+let agentConvId = null;
+let agentPendingAction = null;
+const agentChat = document.getElementById("agent-chat");
+const agentInput = document.getElementById("agent-input");
+const agentSendBtn = document.getElementById("agent-send-btn");
+
+function addAgentMessage(role, content, extra = "") {
+  const div = document.createElement("div");
+  div.className = `agent-msg ${role}`;
+  const avatar = role === "assistant" ? "🤖" : "👤";
+  const time = new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" });
+  div.innerHTML = `
+    <div class="avatar">${avatar}</div>
+    <div class="bubble">${content}<span class="msg-time">${time}</span></div>
+  `;
+  agentChat.appendChild(div);
+  if (extra) {
+    const extraDiv = document.createElement("div");
+    extraDiv.innerHTML = extra;
+    agentChat.appendChild(extraDiv);
+  }
+  agentChat.scrollTop = agentChat.scrollHeight;
+}
+
+function addTypingIndicator() {
+  const div = document.createElement("div");
+  div.className = "agent-msg assistant";
+  div.id = "agent-typing";
+  div.innerHTML = `
+    <div class="avatar">🤖</div>
+    <div class="bubble">
+      <div class="typing-dots"><span></span><span></span><span></span></div>
+    </div>
+  `;
+  agentChat.appendChild(div);
+  agentChat.scrollTop = agentChat.scrollHeight;
+}
+
+function removeTypingIndicator() {
+  const el = document.getElementById("agent-typing");
+  if (el) el.remove();
+}
+
+function renderConfirmation(action) {
+  const params = action.parameters || {};
+  const paramRows = Object.entries(params)
+    .filter(([, v]) => v !== null && v !== undefined && v !== "")
+    .map(([k, v]) => `<div class="param-row"><span class="param-key">${k}</span><span class="param-val">${v}</span></div>`)
+    .join("");
+
+  const div = document.createElement("div");
+  div.className = "agent-msg assistant";
+  div.innerHTML = `
+    <div class="avatar">🤖</div>
+    <div class="bubble">
+      <div class="agent-confirm">
+        <div class="confirm-title">✅ تأكيد التنفيذ</div>
+        <div class="confirm-desc">${action.explanation_ar || "هل تريد تنفيذ هذا الإجراء؟"}</div>
+        <div class="confirm-params">${paramRows || "لا توجد معاملات"}</div>
+        <div class="confirm-actions">
+          <button class="exec-btn" onclick="executeAgentAction()">🔧 تنفيذ</button>
+          <button class="cancel-btn" onclick="cancelAgentAction()">❌ إلغاء</button>
+        </div>
+      </div>
+      <span class="msg-time">${new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}</span>
+    </div>
+  `;
+  agentChat.appendChild(div);
+  agentChat.scrollTop = agentChat.scrollHeight;
+}
+
+function renderResult(summary, result) {
+  let extraHtml = "";
+  if (result) {
+    if (result.items && Array.isArray(result.items)) {
+      const tableRows = result.items.slice(0, 10).map(item => {
+        const name = item.full_name || item.title || item.name || "-";
+        const detail = item.job_title || item.email || item.status || "-";
+        return `<div class="stat-item"><span>${name}</span><span style="color:var(--text-muted)">${detail}</span></div>`;
+      }).join("");
+      extraHtml = `<div class="result-body" style="margin-top:8px;">${tableRows}</div>`;
+      if (result.items.length > 10) {
+        extraHtml += `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">...و${result.items.length - 10} آخرون</div>`;
+      }
+    }
+    if (result.employee) {
+      const e = result.employee;
+      extraHtml = `<div class="result-body">
+        <div class="stat-item"><span>الاسم</span><span>${e.full_name}</span></div>
+        <div class="stat-item"><span>المسمى</span><span>${e.job_title || "-"}</span></div>
+        <div class="stat-item"><span>الجنسية</span><span>${e.nationality || "-"}</span></div>
+        <div class="stat-item"><span>الجوال</span><span>${e.phone || "-"}</span></div>
+        <div class="stat-item"><span>الراتب</span><span>${e.salary || "-"}</span></div>
+      </div>`;
+    }
+    if (result.statistics) {
+      const s = result.statistics;
+      extraHtml = `<div class="result-body">
+        <div class="stat-item"><span>👥 الموظفون</span><span>${s.employees}</span></div>
+        <div class="stat-item"><span>📥 الطلبات</span><span>${s.applications}</span></div>
+        <div class="stat-item"><span>💼 الوظائف</span><span>${s.jobs}</span></div>
+      </div>`;
+    }
+    if (result.sent_count !== undefined) {
+      extraHtml = `<div class="result-body">
+        <div class="stat-item"><span>تم الإرسال إلى</span><span>${result.sent_count}</span></div>
+        <div class="stat-item"><span>نموذج</span><span>${result.recipients_sample || "-"}</span></div>
+      </div>`;
+    }
+    if (result.count !== undefined) {
+      extraHtml = `<div class="result-body"><div class="stat-item"><span>الإجمالي</span><span>${result.count}</span></div></div>`;
+    }
+    if (result.is_download) {
+      extraHtml = `<div class="result-body" style="text-align:center;padding:8px 0;">
+        <button onclick="downloadAgentFile('${result.data_base64}', '${result.filename}', '${result.content_type}')" style="padding:10px 20px;">📥 تحميل التقرير</button>
+      </div>`;
+    }
+  }
+
+  const div = document.createElement("div");
+  div.className = "agent-msg assistant";
+  div.innerHTML = `
+    <div class="avatar">🤖</div>
+    <div class="bubble">
+      <div class="agent-result">
+        <div class="result-title">✅ ${summary}</div>
+        ${extraHtml}
+      </div>
+      <span class="msg-time">${new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}</span>
+    </div>
+  `;
+  agentChat.appendChild(div);
+
+  if (!agentPendingAction) {
+    addSuggestions();
+  }
+  agentChat.scrollTop = agentChat.scrollHeight;
+}
+
+function addSuggestions() {
+  const suggestions = [
+    "عرض الموظفين",
+    "إحصائيات النظام",
+    "كم عدد الموظفين؟",
+    "عرض طلبات التوظيف",
+    "أرسل إشعار للجميع",
+  ];
+  const div = document.createElement("div");
+  div.className = "agent-msg assistant";
+  div.innerHTML = `
+    <div class="avatar">🤖</div>
+    <div class="bubble" style="background:none;border:none;padding:4px 0;">
+      <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:4px;">💡 اقتراحات:</div>
+      <div class="agent-suggestions">
+        ${suggestions.map(s => `<span class="chip" onclick="setAgentInput('${s}')">${s}</span>`).join("")}
+      </div>
+    </div>
+  `;
+  agentChat.appendChild(div);
+  agentChat.scrollTop = agentChat.scrollHeight;
+}
+
+function setAgentInput(text) {
+  agentInput.value = text;
+  agentInput.focus();
+}
+
+window.executeAgentAction = async function() {
+  if (!agentPendingAction) return;
+  removeTypingIndicator();
+  addTypingIndicator();
+
+  try {
+    const res = await apiFetch(`${API_BASE}/agent/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversation_id: agentConvId, confirm: true }),
+    });
+    const data = await res.json();
+    removeTypingIndicator();
+    agentConvId = data.conversation_id;
+    agentPendingAction = null;
+
+    if (data.type === "tool_result") {
+      renderResult(data.message_ar, data.result);
+    } else if (data.type === "error") {
+      addAgentMessage("assistant", "❌ " + data.message_ar);
+      addSuggestions();
+    } else {
+      addAgentMessage("assistant", data.message_ar);
+      addSuggestions();
+    }
+  } catch (e) {
+    removeTypingIndicator();
+    addAgentMessage("assistant", "❌ خطأ في الاتصال: " + e.message);
+    addSuggestions();
+  }
+};
+
+window.cancelAgentAction = async function() {
+  if (!agentPendingAction) return;
+  try {
+    await apiFetch(`${API_BASE}/agent/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversation_id: agentConvId, confirm: false }),
+    });
+  } catch (_) {}
+  agentPendingAction = null;
+  addAgentMessage("assistant", "تم إلغاء الطلب");
+  addSuggestions();
+};
+
+window.downloadAgentFile = function(base64, filename, mimeType) {
+  const byteChars = atob(base64);
+  const byteNums = new Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) {
+    byteNums[i] = byteChars.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNums);
+  const blob = new Blob([byteArray], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+async function sendAgentMessage() {
+  const text = agentInput.value.trim();
+  if (!text) return;
+
+  if (agentSendBtn.disabled) return;
+  agentSendBtn.disabled = true;
+
+  addAgentMessage("user", text.replace(/\n/g, "<br>"));
+  agentInput.value = "";
+  agentInput.style.height = "auto";
+
+  addTypingIndicator();
+
+  try {
+    const res = await apiFetch(`${API_BASE}/agent/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, conversation_id: agentConvId }),
+    });
+    const data = await res.json();
+    removeTypingIndicator();
+    agentConvId = data.conversation_id;
+
+    if (data.type === "text_response") {
+      addAgentMessage("assistant", data.message_ar.replace(/\n/g, "<br>"));
+      addSuggestions();
+    } else if (data.type === "tool_call") {
+      addAgentMessage("assistant", data.message_ar.replace(/\n/g, "<br>"));
+      if (data.action && data.action.needs_confirmation) {
+        agentPendingAction = data.action;
+        renderConfirmation(data.action);
+      } else {
+        // Auto-execute if no confirmation needed
+        agentPendingAction = data.action;
+        await window.executeAgentAction();
+      }
+    } else if (data.type === "error") {
+      addAgentMessage("assistant", "❌ " + data.message_ar.replace(/\n/g, "<br>"));
+      addSuggestions();
+    }
+  } catch (e) {
+    removeTypingIndicator();
+    addAgentMessage("assistant", "❌ خطأ في الاتصال: " + e.message);
+    addSuggestions();
+  }
+
+  agentSendBtn.disabled = false;
+}
+
+agentSendBtn.addEventListener("click", sendAgentMessage);
+agentInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendAgentMessage();
+  }
+});
+agentInput.addEventListener("input", () => {
+  agentInput.style.height = "auto";
+  agentInput.style.height = Math.min(agentInput.scrollHeight, 120) + "px";
+});
+
+document.getElementById("agent-clear-btn").addEventListener("click", async () => {
+  if (agentConvId) {
+    try {
+      await apiFetch(`${API_BASE}/agent/clear?conv_id=${agentConvId}`, { method: "POST" });
+    } catch (_) {}
+  }
+  agentConvId = null;
+  agentPendingAction = null;
+  agentChat.innerHTML = `
+    <div class="agent-msg assistant">
+      <div class="avatar">🤖</div>
+      <div class="bubble">
+        👋 مرحباً! أنا مساعد النظام الذكي.<br>
+        يمكنني مساعدتك في:<br>
+        • عرض وإدارة الموظفين<br>
+        • عرض طلبات التوظيف<br>
+        • إرسال الإشعارات<br>
+        • إحصائيات وتقارير<br><br>
+        كيف يمكنني مساعدتك؟
+        <span class="msg-time">الآن</span>
+      </div>
+    </div>
+  `;
+});
 </script>
 </body>
 </html>

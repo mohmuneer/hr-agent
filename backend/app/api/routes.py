@@ -102,6 +102,8 @@ from app.services.job_store import delete_job, get_job, list_jobs, save_job, upd
 from app.services.recommendation import RecommendationError, generate_final_recommendation
 from app.services.voice_interview import VoiceEvaluationError, evaluate_voice_interview
 from app.services.written_test import WrittenTestError, score_written_test
+from app.schemas.agent import AgentChatRequest, AgentChatResponse, AgentConfirmRequest
+from app.services.agent_engine import process_message, confirm_and_execute, clear_conversation
 
 router = APIRouter(prefix="/api/v1")
 
@@ -1003,3 +1005,36 @@ def get_audit_logs(
     """سجل التدقيق — آخر العمليات في النظام."""
     items, total = list_logs(limit, offset)
     return {"items": items, "total": total}
+
+
+# ═══════════════════════════════════════════════════════════════
+# AI Command Center — وكيل المحادثة الذكي
+# ═══════════════════════════════════════════════════════════════
+
+
+@router.post("/agent/chat", response_model=AgentChatResponse)
+def agent_chat(req: AgentChatRequest, _admin: None = Depends(require_admin)) -> dict:
+    """إرسال رسالة إلى وكيل الذكاء الاصطناعي والحصول على رد."""
+    conv_id = req.conversation_id if req.conversation_id and req.conversation_id != "null" else None
+    result = process_message(req.message, conv_id)
+    log_action("agent_chat", "agent",
+               details={"message_preview": req.message[:80]},
+               username="admin")
+    return result.model_dump()
+
+
+@router.post("/agent/confirm", response_model=AgentChatResponse)
+def agent_confirm(req: AgentConfirmRequest, _admin: None = Depends(require_admin)) -> dict:
+    """تأكيد أو إلغاء طلب تنفيذ أداة من الوكيل."""
+    result = confirm_and_execute(req.conversation_id, req.confirm)
+    log_action("agent_confirm" if req.confirm else "agent_cancel", "agent",
+               details={"conv_id": req.conversation_id},
+               username="admin")
+    return result.model_dump()
+
+
+@router.post("/agent/clear")
+def agent_clear_conv(conv_id: str, _admin: None = Depends(require_admin)) -> dict:
+    """مسح محادثة وكيل الذكاء الاصطناعي."""
+    ok = clear_conversation(conv_id)
+    return {"ok": ok}
