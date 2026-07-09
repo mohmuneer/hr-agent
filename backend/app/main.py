@@ -1,11 +1,12 @@
 """نقطة دخول التطبيق."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
@@ -15,7 +16,22 @@ from app.services.auth import _init_admin_password
 
 settings = get_settings()
 
-app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
+
+class UTF8JSONResponse(JSONResponse):
+    """JSON response with ensure_ascii=False to preserve Arabic text."""
+    def render(self, content) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            default=str,
+        ).encode("utf-8")
+
+
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    default_response_class=UTF8JSONResponse,
+)
 
 
 @app.on_event("startup")
@@ -39,25 +55,25 @@ app.mount("/app", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend
 
 @app.get("/", include_in_schema=False)
 def root() -> FileResponse:
-    return FileResponse(FRONTEND_DIR / "login.html")
+    return FileResponse(FRONTEND_DIR / "login.html", media_type="text/html; charset=utf-8")
 
 
 @app.get("/apply", include_in_schema=False)
 def apply_page() -> FileResponse:
     """صفحة تقديم خارجية للمرشحين — منفصلة عن لوحة HR الداخلية."""
-    return FileResponse(FRONTEND_DIR / "apply.html")
+    return FileResponse(FRONTEND_DIR / "apply.html", media_type="text/html; charset=utf-8")
 
 
 @app.get("/interview", include_in_schema=False)
 def interview_page() -> FileResponse:
     """صفحة المقابلة الصوتية للمرشح — تُفتح من رابط التحقق من الحالة بعد الموافقة."""
-    return FileResponse(FRONTEND_DIR / "interview.html")
+    return FileResponse(FRONTEND_DIR / "interview.html", media_type="text/html; charset=utf-8")
 
 
 @app.get("/login", include_in_schema=False)
 def login_page() -> FileResponse:
     """صفحة تسجيل دخول فريق HR للوحة الداخلية."""
-    return FileResponse(FRONTEND_DIR / "login.html")
+    return FileResponse(FRONTEND_DIR / "login.html", media_type="text/html; charset=utf-8")
 
 
 @app.get("/health")
