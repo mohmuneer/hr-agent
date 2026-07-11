@@ -82,9 +82,9 @@
     max-width: 960px; width: 100%; margin: 0 auto;
     display: none;
     gap: 20px;
-    overflow-x: hidden;
+    overflow: visible;
   }
-  .content.active { display: grid; }
+  .content.active { display: grid; overflow: visible; }
 
   @media (max-width: 860px) {
     .sidebar {
@@ -117,7 +117,7 @@
     .decision-actions button { width: 100%; }
     .field-header { flex-direction: column; align-items: flex-start; gap: 10px; }
     .field-header > div { width: 100%; display: flex; flex-wrap: wrap; gap: 8px; }
-    table.apps-table { font-size: 0.8rem; display: block; overflow-x: auto; white-space: nowrap; }
+    .table-wrap { margin: 0 -4px; padding: 0 4px; }
     .agent-msg { max-width: 95%; }
     .agent-input-area { flex-direction: column; }
     .agent-input-area button { width: 100%; }
@@ -222,8 +222,9 @@
   .apply-link-hint code { -webkit-user-select: all; user-select: all; background: var(--bg); padding: 2px 6px; border-radius: 4px; }
   .back-link-btn { margin-bottom: 10px; }
 
-  table.apps-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
-  table.apps-table th, table.apps-table td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--border); }
+  table.apps-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; display: table; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table.apps-table th, table.apps-table td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
   table.apps-table th { color: var(--text-muted); font-weight: 600; }
   table.apps-table tr:hover { background: var(--bg); }
   .score-pill { padding: 3px 10px; border-radius: 999px; color: #fff; font-size: 0.8rem; font-weight: 600; }
@@ -1201,10 +1202,10 @@ async function loadCriteriaView() {
             </div>
           </div>
           <p class="hint">${cData.note || ""}</p>
-          <table class="apps-table">
+          <div class="table-wrap"><table class="apps-table">
             <thead><tr><th>المعيار</th><th>الوزن</th><th>الوصف</th><th>إجراءات</th></tr></thead>
             <tbody>${rows}</tbody>
-          </table>
+          </table></div>
           ${(cData.criteria || []).length === 0 ? '<p class="hint" style="margin-top:10px;">لا توجد معايير بعد.</p>' : ""}
         </div>
       `;
@@ -1400,7 +1401,7 @@ async function loadAuditLogs() {
     const totalPages = Math.ceil(auditPagination.total / auditPagination.limit);
     const currentPage = Math.floor(auditPagination.offset / auditPagination.limit) + 1;
     container.innerHTML = `
-      <table class="apps-table">
+      <div class="table-wrap"><table class="apps-table">
         <thead><tr>
           <th>الوقت</th><th>المستخدم</th><th>الإجراء</th><th>النوع</th><th>التفاصيل</th>
         </tr></thead>
@@ -1415,7 +1416,7 @@ async function loadAuditLogs() {
           }
           return `<tr><td style="white-space:nowrap;">${time}</td><td>${log.username}</td><td>${action}</td><td>${type}</td><td class="hint">${detail}</td></tr>`;
         }).join("")}</tbody>
-      </table>
+      </table></div>
       <div class="pagination" style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:12px;">
         <button type="button" class="link-btn" onclick="auditPage(-1)" ${currentPage <= 1 ? "disabled" : ""}>السابق</button>
         <span class="hint">الصفحة ${currentPage} من ${totalPages || 1}</span>
@@ -1614,12 +1615,12 @@ async function loadJobs() {
       </tr>
     `).join("");
     list.innerHTML = `
-      <table class="apps-table">
+      <div class="table-wrap"><table class="apps-table">
         <thead><tr>
           <th>المسمى الوظيفي</th><th>المجال</th><th>الموقع</th><th>الحالة</th><th>تاريخ الإضافة</th><th></th>
         </tr></thead>
         <tbody>${rows}</tbody>
-      </table>
+      </table></div>
     `;
 
     list.querySelectorAll(".edit-job-btn").forEach(btn => {
@@ -1763,13 +1764,13 @@ async function loadEmployees() {
     const totalPages = Math.ceil(employeesPagination.total / employeesPagination.limit);
     const currentPage = Math.floor(employeesPagination.offset / employeesPagination.limit) + 1;
     list.innerHTML = `
-      <table class="apps-table">
+      <div class="table-wrap"><table class="apps-table">
         <thead><tr>
           <th>الاسم</th><th>الرقم الوظيفي</th><th>الجنسية</th><th>المسمى الوظيفي</th>
           <th>الراتب</th><th>رقم الإقامة</th><th>تاريخ الانتهاء</th><th></th>
         </tr></thead>
         <tbody>${rows}</tbody>
-      </table>
+      </table></div>
       <div class="pagination" style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:12px;">
         <button type="button" class="link-btn" onclick="employeesPage(-1)" ${currentPage <= 1 ? "disabled" : ""}>السابق</button>
         <span class="hint">الصفحة ${currentPage} من ${totalPages || 1}</span>
@@ -2204,13 +2205,13 @@ async function loadApplications() {
           <button type="button" id="delete-selected-apps-btn" class="secondary" style="padding:6px 14px;font-size:0.85rem;color:var(--danger);border-color:var(--danger);" disabled>🗑️ حذف المحدد</button>
         </div>
       </div>
-      <table class="apps-table">
+      <div class="table-wrap"><table class="apps-table">
         <thead><tr>
           <th style="width:32px;"><input type="checkbox" id="select-all-apps"></th>
           <th>الاسم</th><th>المسمى الوظيفي</th><th>المجال</th><th>الدرجة</th><th>الحالة</th><th>التاريخ</th><th></th>
         </tr></thead>
         <tbody>${rows}</tbody>
-      </table>
+      </table></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
         <span class="hint">إجمالي النتائج: ${appsPagination.total}</span>
         <div style="display:flex;align-items:center;gap:12px;">
