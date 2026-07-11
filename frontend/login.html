@@ -59,6 +59,31 @@
     border: 1px solid var(--border); background: var(--bg); color: var(--text);
     font-family: inherit; font-size: 0.95rem;
   }
+  .password-wrapper {
+    position: relative;
+  }
+  .password-wrapper input {
+    padding-right: 42px;
+  }
+  .toggle-password {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    right: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    width: auto;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .toggle-password:hover {
+    background: none;
+    color: var(--text);
+  }
   button {
     width: 100%; background: var(--primary); color: #fff; border: none;
     padding: 11px 22px; border-radius: 8px; font-size: 0.95rem; cursor: pointer; font-weight: 600;
@@ -84,7 +109,15 @@
     </div>
     <div class="field">
       <label for="password">كلمة المرور</label>
-      <input type="password" id="password" required>
+      <div class="password-wrapper">
+        <input type="password" id="password" required>
+        <button type="button" class="toggle-password" aria-label="إظهار كلمة المرور">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
     </div>
     <button type="submit" id="login-btn">تسجيل الدخول</button>
     <div id="status"></div>
@@ -94,6 +127,15 @@
 <script>
 const params = new URLSearchParams(location.search);
 const redirectTo = params.get("redirect") || "/app/";
+
+document.querySelector(".toggle-password").addEventListener("click", function () {
+  const pwd = document.getElementById("password");
+  const isPassword = pwd.type === "password";
+  pwd.type = isPassword ? "text" : "password";
+  this.innerHTML = isPassword
+    ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+    : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+});
 
 document.getElementById("login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
