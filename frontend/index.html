@@ -518,6 +518,7 @@
       <button type="button" class="nav-item" data-view="applications">📥 الطلبات الواردة</button>
       <button type="button" class="nav-item" data-view="jobs">💼 المسميات الوظيفية</button>
       <button type="button" class="nav-item" data-view="employees">👥 الموظفون</button>
+      <button type="button" class="nav-item" data-view="compliance">⚖️ الامتثال</button>
       <button type="button" class="nav-item" data-view="analyze">🧪 تحليل سيرة ذاتية</button>
       <button type="button" class="nav-item" data-view="criteria">⚙️ المجالات والمعايير</button>
       <button type="button" class="nav-item" data-view="audit">📋 سجل التدقيق</button>
@@ -702,11 +703,117 @@
             <input type="date" id="employee-expiry-input">
           </div>
         </div>
+        <hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
+        <h4 style="margin:0 0 10px;font-size:0.95rem;color:var(--text-muted);">بيانات الامتثال السعودي</h4>
+        <div class="row">
+          <div class="field">
+            <label for="employee-nationalid-input">رقم الهوية الوطنية</label>
+            <input type="text" id="employee-nationalid-input">
+          </div>
+          <div class="field">
+            <label for="employee-hiredate-input">تاريخ التعيين</label>
+            <input type="date" id="employee-hiredate-input">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="employee-basicsalary-input">الراتب الأساسي (GOSI)</label>
+            <input type="number" id="employee-basicsalary-input" step="0.01">
+          </div>
+          <div class="field">
+            <label for="employee-housing-input">بدل السكن</label>
+            <input type="number" id="employee-housing-input" step="0.01" value="0">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="employee-otherallow-input">بدلات أخرى</label>
+            <input type="number" id="employee-otherallow-input" step="0.01" value="0">
+          </div>
+          <div class="field">
+            <label for="employee-contracttype-input">نوع العقد</label>
+            <select id="employee-contracttype-input">
+              <option value="unlimited">غير محدد المدة</option>
+              <option value="limited">محدد المدة</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="employee-contractend-input">تاريخ انتهاء العقد</label>
+            <input type="date" id="employee-contractend-input">
+          </div>
+          <div class="field">
+            <label for="employee-probationend-input">تاريخ انتهاء فترة التجربة</label>
+            <input type="date" id="employee-probationend-input">
+          </div>
+        </div>
+        <div class="field">
+          <label for="employee-gosi-input" style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="employee-gosi-input" checked>
+            مسجّل في GOSI قبل يوليو 2024
+          </label>
+        </div>
         <div class="interview-actions">
           <button type="button" id="save-employee-btn">حفظ</button>
           <button type="button" class="secondary" id="cancel-employee-btn">إلغاء</button>
         </div>
         <div id="employee-form-status" class="hint"></div>
+      </div>
+    </section>
+
+    <section class="content" id="view-compliance">
+      <div class="card">
+        <h2 class="section-title">⚖️ الامتثال — نظام العمل السعودي</h2>
+        <div id="compliance-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:14px;">
+          <div class="card" style="padding:16px;text-align:center;">
+            <div class="hint">نسبة التوطين (نيطات)</div>
+            <div id="compliance-saudization" style="font-size:1.5rem;font-weight:700;margin-top:8px;">—</div>
+          </div>
+          <div class="card" style="padding:16px;text-align:center;">
+            <div class="hint">تنبيهات الإقامة</div>
+            <div id="compliance-iqama-alerts" style="font-size:1.5rem;font-weight:700;margin-top:8px;">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">حاسبة مساهمة GOSI الشهرية</h3>
+        <div class="row">
+          <div class="field">
+            <label for="gosi-emp-select">اختر موظفًا</label>
+            <select id="gosi-emp-select"><option value="">— اختر —</option></select>
+          </div>
+        </div>
+        <div id="gosi-result" class="hint" style="margin-top:10px;"></div>
+        <button type="button" id="gosi-calc-btn" style="margin-top:10px;">احسب GOSI</button>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">حاسبة مكافأة نهاية الخدمة (المادة 84/85)</h3>
+        <div class="row">
+          <div class="field">
+            <label for="eos-emp-select">اختر موظفًا</label>
+            <select id="eos-emp-select"><option value="">— اختر —</option></select>
+          </div>
+          <div class="field">
+            <label for="eos-end-date">تاريخ انتهاء الخدمة</label>
+            <input type="date" id="eos-end-date">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="eos-separation-type">نوع الانفصال</label>
+            <select id="eos-separation-type"></select>
+          </div>
+        </div>
+        <div id="eos-result" class="hint" style="margin-top:10px;"></div>
+        <button type="button" id="eos-calc-btn" style="margin-top:10px;">احسب مكافأة نهاية الخدمة</button>
+      </div>
+
+      <div class="card" id="compliance-iqama-list-card">
+        <h3 style="margin-top:0;">تنبيهات الإقامة</h3>
+        <div id="compliance-iqama-list">جارٍ التحميل...</div>
       </div>
     </section>
 
@@ -1024,6 +1131,7 @@ const viewTitles = {
   applications: "الطلبات الواردة",
   jobs: "المسميات الوظيفية",
   employees: "الموظفون",
+  compliance: "الامتثال",
   analyze: "تحليل سيرة ذاتية",
   criteria: "المجالات والمعايير",
   audit: "سجل التدقيق",
@@ -1043,6 +1151,7 @@ function switchView(view) {
   if (view === "applications") loadApplications();
   if (view === "jobs") loadJobs();
   if (view === "employees") loadEmployees();
+  if (view === "compliance") loadComplianceData();
   if (view === "criteria") loadCriteriaView();
   if (view === "audit") loadAuditLogs();
   if (view === "system") loadSystemView();
@@ -1856,13 +1965,19 @@ async function loadEmployees() {
       const expiryCell = e.iqama_expiry_date
         ? `${e.iqama_expiry_date}${st ? `<div class="iqama-status"><span class="status-badge ${st.cls}">${st.label}</span></div>` : ""}`
         : "-";
+      const contractLabel = e.contract_type === "limited" ? "محدد المدة" : "غير محدد";
+      const salaryDisplay = e.basic_salary !== null && e.basic_salary !== undefined
+        ? `${e.salary || "-"} <span class="hint" style="font-size:0.75rem;">(أساسي: ${e.basic_salary})</span>`
+        : (e.salary !== null && e.salary !== undefined ? e.salary : "-");
       return `
         <tr data-id="${e.id}">
           <td>${e.full_name}</td>
           <td>${e.employee_number || "-"}</td>
           <td>${e.nationality || "-"}</td>
           <td>${e.job_title || "-"}</td>
-          <td>${e.salary !== null && e.salary !== undefined ? e.salary : "-"}</td>
+          <td>${salaryDisplay}</td>
+          <td>${contractLabel}</td>
+          <td>${e.hire_date || "-"}</td>
           <td>${e.iqama_number || "-"}</td>
           <td>${expiryCell}</td>
           <td>
@@ -1875,6 +1990,7 @@ async function loadEmployees() {
     const mobileCards = employees.map(e => {
       const st = iqamaStatus(e.iqama_expiry_date);
       const expiryLabel = st ? `<span class="status-badge ${st.cls}">${st.label}</span>` : (e.iqama_expiry_date || "-");
+      const contractLabel = e.contract_type === "limited" ? "محدد المدة" : "غير محدد";
       return `
         <div class="mobile-card" data-id="${e.id}">
           <div class="mc-row"><span class="mc-label">الاسم</span><span class="mc-value">${e.full_name}</span></div>
@@ -1882,6 +1998,9 @@ async function loadEmployees() {
           <div class="mc-row"><span class="mc-label">الجنسية</span><span class="mc-value">${e.nationality || "-"}</span></div>
           <div class="mc-row"><span class="mc-label">المسمى الوظيفي</span><span class="mc-value">${e.job_title || "-"}</span></div>
           <div class="mc-row"><span class="mc-label">الراتب</span><span class="mc-value">${e.salary !== null && e.salary !== undefined ? e.salary : "-"}</span></div>
+          <div class="mc-row"><span class="mc-label">الراتب الأساسي</span><span class="mc-value">${e.basic_salary !== null && e.basic_salary !== undefined ? e.basic_salary : "-"}</span></div>
+          <div class="mc-row"><span class="mc-label">نوع العقد</span><span class="mc-value">${contractLabel}</span></div>
+          <div class="mc-row"><span class="mc-label">تاريخ التعيين</span><span class="mc-value">${e.hire_date || "-"}</span></div>
           <div class="mc-row"><span class="mc-label">رقم الإقامة</span><span class="mc-value">${e.iqama_number || "-"}</span></div>
           <div class="mc-row"><span class="mc-label">تاريخ الانتهاء</span><span class="mc-value">${expiryLabel}</span></div>
           <div class="mc-actions">
@@ -1897,7 +2016,7 @@ async function loadEmployees() {
       <div class="table-desktop table-wrap"><table class="apps-table">
         <thead><tr>
           <th>الاسم</th><th>الرقم الوظيفي</th><th>الجنسية</th><th>المسمى الوظيفي</th>
-          <th>الراتب</th><th>رقم الإقامة</th><th>تاريخ الانتهاء</th><th></th>
+          <th>الراتب</th><th>نوع العقد</th><th>تاريخ التعيين</th><th>رقم الإقامة</th><th>تاريخ الانتهاء</th><th></th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
@@ -1949,6 +2068,15 @@ function openEmployeeForm(emp) {
   document.getElementById("employee-salary-input").value = emp && emp.salary !== null ? emp.salary : "";
   document.getElementById("employee-iqama-input").value = emp ? emp.iqama_number || "" : "";
   document.getElementById("employee-expiry-input").value = emp ? emp.iqama_expiry_date || "" : "";
+  document.getElementById("employee-nationalid-input").value = emp ? emp.national_id || "" : "";
+  document.getElementById("employee-hiredate-input").value = emp ? emp.hire_date || "" : "";
+  document.getElementById("employee-basicsalary-input").value = emp && emp.basic_salary !== null ? emp.basic_salary : "";
+  document.getElementById("employee-housing-input").value = emp && emp.housing_allowance !== null ? emp.housing_allowance : 0;
+  document.getElementById("employee-otherallow-input").value = emp && emp.other_allowances !== null ? emp.other_allowances : 0;
+  document.getElementById("employee-contracttype-input").value = emp ? emp.contract_type || "unlimited" : "unlimited";
+  document.getElementById("employee-contractend-input").value = emp ? emp.contract_end_date || "" : "";
+  document.getElementById("employee-probationend-input").value = emp ? emp.probation_end_date || "" : "";
+  document.getElementById("employee-gosi-input").checked = emp ? (emp.gosi_registered_before_2024 !== false) : true;
   document.getElementById("employee-form-status").textContent = "";
   card.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -1969,6 +2097,9 @@ document.getElementById("save-employee-btn").addEventListener("click", async () 
   }
 
   const salaryRaw = document.getElementById("employee-salary-input").value;
+  const basicSalaryRaw = document.getElementById("employee-basicsalary-input").value;
+  const housingRaw = document.getElementById("employee-housing-input").value;
+  const otherAllowRaw = document.getElementById("employee-otherallow-input").value;
   const payload = {
     full_name,
     employee_number: document.getElementById("employee-number-input").value.trim() || null,
@@ -1978,6 +2109,15 @@ document.getElementById("save-employee-btn").addEventListener("click", async () 
     salary: salaryRaw !== "" ? parseFloat(salaryRaw) : null,
     iqama_number: document.getElementById("employee-iqama-input").value.trim() || null,
     iqama_expiry_date: document.getElementById("employee-expiry-input").value || null,
+    national_id: document.getElementById("employee-nationalid-input").value.trim() || null,
+    hire_date: document.getElementById("employee-hiredate-input").value || null,
+    basic_salary: basicSalaryRaw !== "" ? parseFloat(basicSalaryRaw) : null,
+    housing_allowance: housingRaw !== "" ? parseFloat(housingRaw) : 0,
+    other_allowances: otherAllowRaw !== "" ? parseFloat(otherAllowRaw) : 0,
+    contract_type: document.getElementById("employee-contracttype-input").value || "unlimited",
+    contract_end_date: document.getElementById("employee-contractend-input").value || null,
+    probation_end_date: document.getElementById("employee-probationend-input").value || null,
+    gosi_registered_before_2024: document.getElementById("employee-gosi-input").checked,
   };
 
   statusEl.className = "hint";
@@ -2032,6 +2172,122 @@ document.getElementById("import-excel-input").addEventListener("change", async (
   } finally {
     e.target.value = "";
   }
+});
+
+// === قسم الامتثال السعودي ===
+let complianceEmployees = [];
+
+async function loadComplianceData() {
+  try {
+    const res = await apiFetch(`${API_BASE}/employees?limit=500`);
+    const data = await res.json();
+    complianceEmployees = data.items || [];
+
+    // populate dropdowns
+    const opts = complianceEmployees.map(e => `<option value="${e.id}">${e.full_name}</option>`).join("");
+    const gosiSel = document.getElementById("gosi-emp-select");
+    const eosSel = document.getElementById("eos-emp-select");
+    gosiSel.innerHTML = '<option value="">— اختر —</option>' + opts;
+    eosSel.innerHTML = '<option value="">— اختر —</option>' + opts;
+
+    // saudization
+    try {
+      const sRes = await apiFetch(`${API_BASE}/compliance/saudization`);
+      const sData = await sRes.json();
+      document.getElementById("compliance-saudization").textContent = sData.total > 0
+        ? `${sData.saudi_count}/${sData.total} (${sData.percentage}%)`
+        : "لا يوجد موظفون";
+    } catch { document.getElementById("compliance-saudization").textContent = "—"; }
+
+    // iqama alerts
+    try {
+      const iRes = await apiFetch(`${API_BASE}/compliance/iqama-alerts`);
+      const iData = await iRes.json();
+      const alerts = iData.alerts || [];
+      const urgent = alerts.filter(a => a.status === "expired" || a.status === "urgent").length;
+      const warning = alerts.filter(a => a.status === "warning").length;
+      document.getElementById("compliance-iqama-alerts").innerHTML =
+        (urgent > 0 ? `<span style="color:var(--danger);">${urgent} عاجل/منتهية</span>` : "") +
+        (warning > 0 ? ` <span style="color:var(--warn);">${warning} تحذير</span>` : "") +
+        (urgent === 0 && warning === 0 ? '<span style="color:var(--good);">✓ لا توجد تنبيهات</span>' : "");
+      // iqama list
+      const listEl = document.getElementById("compliance-iqama-list");
+      if (alerts.length === 0) {
+        listEl.innerHTML = '<span class="hint">لا توجد إقامات منتهية أو قريبة الانتهاء.</span>';
+      } else {
+        listEl.innerHTML = `<table class="apps-table" style="width:100%"><thead><tr>
+          <th>الموظف</th><th>رقم الإقامة</th><th>تاريخ الانتهاء</th><th>الحالة</th>
+        </tr></thead><tbody>${alerts.map(a => `<tr>
+          <td>${a.full_name || a.employee_id}</td>
+          <td>${a.iqama_number || "-"}</td>
+          <td>${a.iqama_expiry_date}</td>
+          <td><span class="status-badge ${a.status === 'expired' ? 'rejected' : a.status === 'urgent' ? 'pending' : 'approved'}">${
+            a.status === 'expired' ? 'منتهية' : a.status === 'urgent' ? 'عاجل' : 'تنبيه'
+          }</span></td>
+        </tr>`).join("")}</tbody></table>`;
+      }
+    } catch { document.getElementById("compliance-iqama-list").textContent = "—"; }
+
+    // separation types
+    try {
+      const stRes = await apiFetch(`${API_BASE}/compliance/separation-types`);
+      const stData = await stRes.json();
+      const sel = document.getElementById("eos-separation-type");
+      sel.innerHTML = Object.entries(stData.types || {}).map(([k, v]) =>
+        `<option value="${k}">${v}</option>`
+      ).join("");
+    } catch {}
+  } catch {}
+}
+
+document.getElementById("gosi-calc-btn").addEventListener("click", async () => {
+  const empId = document.getElementById("gosi-emp-select").value;
+  const resultEl = document.getElementById("gosi-result");
+  if (!empId) { resultEl.textContent = "اختر موظفًا أولاً."; resultEl.className = "hint error"; return; }
+  resultEl.className = "hint"; resultEl.textContent = "جارٍ الحساب...";
+  try {
+    const res = await apiFetch(`${API_BASE}/compliance/employees/${empId}/gosi`);
+    const data = await res.json();
+    resultEl.className = "hint";
+    resultEl.innerHTML = `
+      <strong>الراتب الأساسي:</strong> ${data.basic_salary} ر.س<br>
+      <strong>بدل السكن:</strong> ${data.housing_allowance} ر.س<br>
+      <strong>نسبة التأمين (موظف):</strong> ${data.employee_rate}%<br>
+      <strong>نسبة التأمين (صاحب عمل):</strong> ${data.employer_rate}%<br>
+      <hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">
+      <strong>مساهمة الموظف:</strong> <span style="color:var(--primary);font-weight:700;">${data.employee_contribution} ر.س</span><br>
+      <strong>مساهمة صاحب العمل:</strong> <span style="color:var(--primary);font-weight:700;">${data.employer_contribution} ر.س</span><br>
+      <strong>الإجمالي الشهري:</strong> <span style="font-weight:700;">${data.total_monthly} ر.س</span>
+    `;
+  } catch (e) { resultEl.textContent = "خطأ: " + e.message; resultEl.className = "hint error"; }
+});
+
+document.getElementById("eos-calc-btn").addEventListener("click", async () => {
+  const empId = document.getElementById("eos-emp-select").value;
+  const endDate = document.getElementById("eos-end-date").value;
+  const sepType = document.getElementById("eos-separation-type").value;
+  const resultEl = document.getElementById("eos-result");
+  if (!empId) { resultEl.textContent = "اختر موظفًا أولاً."; resultEl.className = "hint error"; return; }
+  if (!endDate) { resultEl.textContent = "حدد تاريخ انتهاء الخدمة."; resultEl.className = "hint error"; return; }
+  resultEl.className = "hint"; resultEl.textContent = "جارٍ الحساب...";
+  try {
+    const res = await apiFetch(`${API_BASE}/compliance/employees/${empId}/end-of-service`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ end_date: endDate, separation_type: sepType }),
+    });
+    const data = await res.json();
+    resultEl.className = "hint";
+    resultEl.innerHTML = `
+      <strong>سنوات الخدمة:</strong> ${data.years_of_service}<br>
+      <strong>الراتب الأساسي:</strong> ${data.basic_salary} ر.س<br>
+      <strong>بدل السكن:</strong> ${data.housing_allowance} ر.س<br>
+      <strong>الراتب اليومي:</strong> ${data.daily_wage} ر.س<br>
+      <hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">
+      <strong>المكافأة الإجمالية:</strong> <span style="color:var(--primary);font-weight:700;font-size:1.1rem;">${data.gratuity_total} ر.س</span><br>
+      <span class="hint">${data.note || ""}</span>
+    `;
+  } catch (e) { resultEl.textContent = "خطأ: " + e.message; resultEl.className = "hint error"; }
 });
 
 // نظام modal عام يستبدل alert/confirm/prompt المتصفح الافتراضية
