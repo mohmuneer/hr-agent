@@ -192,6 +192,7 @@
 
   /* ===== MOBILE CARD VIEW FOR TABLES ===== */
   .mobile-cards { display: none; }
+  .iqama-mobile-cards { display: none; }
   .mobile-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
     padding: var(--space-md); margin-bottom: var(--space-sm);
@@ -450,6 +451,12 @@
     /* Table -> Card on mobile */
     .table-desktop { display: none !important; }
     .mobile-cards { display: block !important; }
+    /* Compliance mobile */
+    #compliance-stats { grid-template-columns: 1fr !important; }
+    #view-compliance .card { padding: var(--space-md); }
+    #view-compliance select, #view-compliance input, #view-compliance button { font-size: 0.9rem; }
+    .iqama-table-desktop { display: none !important; }
+    .iqama-mobile-cards { display: block !important; }
   }
 
   /* --- Phones: 480px - 767px --- */
@@ -473,6 +480,9 @@
     /* Table -> Card on small tablets */
     .table-desktop { display: none !important; }
     .mobile-cards { display: block !important; }
+    .iqama-table-desktop { display: none !important; }
+    .iqama-mobile-cards { display: block !important; }
+    #compliance-stats { grid-template-columns: 1fr !important; }
   }
 
   /* --- Tablets: 768px - 1023px --- */
@@ -765,7 +775,7 @@
     <section class="content" id="view-compliance">
       <div class="card">
         <h2 class="section-title">⚖️ الامتثال — نظام العمل السعودي</h2>
-        <div id="compliance-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:14px;">
+        <div id="compliance-stats" style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:14px;">
           <div class="card" style="padding:16px;text-align:center;">
             <div class="hint">نسبة التوطين (نيطات)</div>
             <div id="compliance-saudization" style="font-size:1.5rem;font-weight:700;margin-top:8px;">—</div>
@@ -779,19 +789,19 @@
 
       <div class="card">
         <h3 style="margin-top:0;">حاسبة مساهمة GOSI الشهرية</h3>
-        <div class="row">
+        <div class="row" style="grid-template-columns:1fr;">
           <div class="field">
             <label for="gosi-emp-select">اختر موظفًا</label>
             <select id="gosi-emp-select"><option value="">— اختر —</option></select>
           </div>
         </div>
-        <div id="gosi-result" class="hint" style="margin-top:10px;"></div>
+        <div id="gosi-result" class="hint" style="margin-top:10px;word-wrap:break-word;"></div>
         <button type="button" id="gosi-calc-btn" style="margin-top:10px;">احسب GOSI</button>
       </div>
 
       <div class="card">
         <h3 style="margin-top:0;">حاسبة مكافأة نهاية الخدمة (المادة 84/85)</h3>
-        <div class="row">
+        <div class="row" style="grid-template-columns:1fr;">
           <div class="field">
             <label for="eos-emp-select">اختر موظفًا</label>
             <select id="eos-emp-select"><option value="">— اختر —</option></select>
@@ -801,13 +811,13 @@
             <input type="date" id="eos-end-date">
           </div>
         </div>
-        <div class="row">
+        <div class="row" style="grid-template-columns:1fr;">
           <div class="field">
             <label for="eos-separation-type">نوع الانفصال</label>
             <select id="eos-separation-type"></select>
           </div>
         </div>
-        <div id="eos-result" class="hint" style="margin-top:10px;"></div>
+        <div id="eos-result" class="hint" style="margin-top:10px;word-wrap:break-word;"></div>
         <button type="button" id="eos-calc-btn" style="margin-top:10px;">احسب مكافأة نهاية الخدمة</button>
       </div>
 
@@ -2215,16 +2225,36 @@ async function loadComplianceData() {
       if (alerts.length === 0) {
         listEl.innerHTML = '<span class="hint">لا توجد إقامات منتهية أو قريبة الانتهاء.</span>';
       } else {
-        listEl.innerHTML = `<table class="apps-table" style="width:100%"><thead><tr>
-          <th>الموظف</th><th>رقم الإقامة</th><th>تاريخ الانتهاء</th><th>الحالة</th>
-        </tr></thead><tbody>${alerts.map(a => `<tr>
-          <td>${a.full_name || a.employee_id}</td>
-          <td>${a.iqama_number || "-"}</td>
-          <td>${a.iqama_expiry_date}</td>
-          <td><span class="status-badge ${a.level === 'expired' ? 'rejected' : a.level === 'urgent' ? 'pending' : 'approved'}">${
-            a.level_label_ar || (a.level === 'expired' ? 'منتهية' : a.level === 'urgent' ? 'عاجل' : 'تنبيه')
-          }</span></td>
-        </tr>`).join("")}</tbody></table>`;
+        const alertRows = alerts.map(a => {
+          const badge = a.level === 'expired' ? 'rejected' : a.level === 'urgent' ? 'pending' : 'approved';
+          const label = a.level_label_ar || (a.level === 'expired' ? 'منتهية' : a.level === 'urgent' ? 'عاجل' : 'تنبيه');
+          return `<tr>
+            <td>${a.full_name || a.employee_id}</td>
+            <td>${a.iqama_number || "-"}</td>
+            <td>${a.iqama_expiry_date}</td>
+            <td><span class="status-badge ${badge}">${label}</span></td>
+          </tr>`;
+        }).join("");
+        const alertCards = alerts.map(a => {
+          const badge = a.level === 'expired' ? 'rejected' : a.level === 'urgent' ? 'pending' : 'approved';
+          const label = a.level_label_ar || (a.level === 'expired' ? 'منتهية' : a.level === 'urgent' ? 'عاجل' : 'تنبيه');
+          return `<div class="mobile-card" style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <strong>${a.full_name || a.employee_id}</strong>
+              <span class="status-badge ${badge}">${label}</span>
+            </div>
+            <div class="hint" style="display:flex;flex-direction:column;gap:4px;">
+              <span>الإقامة: ${a.iqama_number || "-"}</span>
+              <span>الانتهاء: ${a.iqama_expiry_date}</span>
+            </div>
+          </div>`;
+        }).join("");
+        listEl.innerHTML = `
+          <div class="iqama-table-desktop" style="overflow-x:auto;"><table class="apps-table" style="width:100%"><thead><tr>
+            <th>الموظف</th><th>رقم الإقامة</th><th>تاريخ الانتهاء</th><th>الحالة</th>
+          </tr></thead><tbody>${alertRows}</tbody></table></div>
+          <div class="iqama-mobile-cards">${alertCards}</div>
+        `;
       }
     } catch { document.getElementById("compliance-iqama-list").textContent = "—"; }
 
