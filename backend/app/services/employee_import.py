@@ -26,11 +26,21 @@ COLUMN_ALIASES: dict[str, list[str]] = {
         "expiry date",
         "expiry_date",
     ],
+    "national_id": ["رقم الهوية", "رقم الهوية الوطنية", "national id", "national_id"],
+    "hire_date": ["تاريخ التعيين", "تاريخ الالتحاق", "hire date", "hire_date", "start date"],
+    "basic_salary": ["الراتب الأساسي", "الراتب الاساسي", "basic salary", "basic_salary"],
+    "housing_allowance": ["بدل السكن", "بدل سكن", "housing allowance", "housing_allowance"],
+    "other_allowances": ["بدلات أخرى", "بدلات اخرى", "other allowances", "other_allowances"],
+    "contract_type": ["نوع العقد", "contract type", "contract_type"],
+    "contract_end_date": ["تاريخ نهاية العقد", "contract end date", "contract_end_date"],
+    "probation_end_date": ["تاريخ نهاية التجربة", "probation end date", "probation_end_date"],
 }
 
 TEMPLATE_HEADERS_AR = [
     "الاسم", "الرقم الوظيفي", "الجنسية", "المسمى الوظيفي",
     "رقم الجوال", "الراتب", "رقم الإقامة", "تاريخ انتهاء الإقامة",
+    "رقم الهوية", "تاريخ التعيين", "الراتب الأساسي", "بدل السكن",
+    "بدلات أخرى", "نوع العقد", "تاريخ نهاية العقد", "تاريخ نهاية التجربة",
 ]
 
 
@@ -60,7 +70,7 @@ def _match_columns(header_row: tuple) -> dict[str, int]:
     return mapping
 
 
-def _parse_expiry(value) -> str | None:
+def _parse_date_cell(value) -> str | None:
     if value is None:
         return None
     if isinstance(value, datetime):
@@ -70,7 +80,11 @@ def _parse_expiry(value) -> str | None:
     return str(value).strip() or None
 
 
-def _parse_salary(value) -> float | None:
+# اسم قديم يُستخدم أيضًا لتواريخ الإقامة تحديدًا (تم إبقاؤه للتوافق العكسي)
+_parse_expiry = _parse_date_cell
+
+
+def _parse_number(value) -> float | None:
     if value is None or str(value).strip() == "":
         return None
     try:
@@ -114,6 +128,11 @@ def parse_employees_excel(content: bytes) -> tuple[list[dict], list[dict]]:
             errors.append({"row": row_num, "reason": "لا يوجد اسم في هذا الصف"})
             continue
 
+        contract_type_raw = _clean_str(get(row, "contract_type"))
+        contract_type = "limited" if contract_type_raw and "محدد" in contract_type_raw and "غير" not in contract_type_raw else (
+            contract_type_raw if contract_type_raw in ("limited", "unlimited") else "unlimited"
+        )
+
         employees.append(
             {
                 "full_name": str(full_name).strip(),
@@ -121,9 +140,17 @@ def parse_employees_excel(content: bytes) -> tuple[list[dict], list[dict]]:
                 "nationality": _clean_str(get(row, "nationality")),
                 "job_title": _clean_str(get(row, "job_title")),
                 "phone": _clean_str(get(row, "phone")),
-                "salary": _parse_salary(get(row, "salary")),
+                "salary": _parse_number(get(row, "salary")),
                 "iqama_number": _clean_str(get(row, "iqama_number")),
-                "iqama_expiry_date": _parse_expiry(get(row, "iqama_expiry_date")),
+                "iqama_expiry_date": _parse_date_cell(get(row, "iqama_expiry_date")),
+                "national_id": _clean_str(get(row, "national_id")),
+                "hire_date": _parse_date_cell(get(row, "hire_date")),
+                "basic_salary": _parse_number(get(row, "basic_salary")),
+                "housing_allowance": _parse_number(get(row, "housing_allowance")) or 0.0,
+                "other_allowances": _parse_number(get(row, "other_allowances")) or 0.0,
+                "contract_type": contract_type,
+                "contract_end_date": _parse_date_cell(get(row, "contract_end_date")),
+                "probation_end_date": _parse_date_cell(get(row, "probation_end_date")),
             }
         )
 
@@ -135,7 +162,10 @@ def generate_template_excel() -> bytes:
     sheet = workbook.active
     sheet.title = "الموظفون"
     sheet.append(TEMPLATE_HEADERS_AR)
-    sheet.append(["محمد أحمد", "1001", "سعودي", "محاسب أول", "0500000000", 8000, "1234567890", "2027-01-15"])
+    sheet.append([
+        "محمد أحمد", "1001", "سعودي", "محاسب أول", "0500000000", 8000, "1234567890", "2027-01-15",
+        "1012345678", "2023-03-01", 6500, 1500, 0, "غير محدد المدة", "", "2023-05-30",
+    ])
 
     buffer = BytesIO()
     workbook.save(buffer)

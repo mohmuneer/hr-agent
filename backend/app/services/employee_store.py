@@ -9,20 +9,20 @@ from sqlalchemy import asc
 from app.core.database import SessionLocal
 from app.models.employee import Employee
 
+# الحقول القابلة للتخزين/التعديل على نموذج الموظف
+_EMPLOYEE_FIELDS = [
+    "full_name", "employee_number", "nationality", "job_title", "phone", "salary",
+    "iqama_number", "iqama_expiry_date", "national_id", "hire_date", "basic_salary",
+    "housing_allowance", "other_allowances", "contract_type", "contract_end_date",
+    "probation_end_date", "gosi_registered_before_2024",
+]
+
 
 def _row_to_dict(row: Employee) -> dict:
-    return {
-        "id": row.id,
-        "created_at": row.created_at.isoformat() if row.created_at else None,
-        "full_name": row.full_name,
-        "employee_number": row.employee_number,
-        "nationality": row.nationality,
-        "job_title": row.job_title,
-        "phone": row.phone,
-        "salary": row.salary,
-        "iqama_number": row.iqama_number,
-        "iqama_expiry_date": row.iqama_expiry_date,
-    }
+    data = {"id": row.id, "created_at": row.created_at.isoformat() if row.created_at else None}
+    for f in _EMPLOYEE_FIELDS:
+        data[f] = getattr(row, f, None)
+    return data
 
 
 def save_employee(record: dict) -> str:
@@ -32,14 +32,7 @@ def save_employee(record: dict) -> str:
         row = Employee(
             id=emp_id,
             created_at=datetime.now(timezone.utc),
-            full_name=record.get("full_name", ""),
-            employee_number=record.get("employee_number"),
-            nationality=record.get("nationality"),
-            job_title=record.get("job_title"),
-            phone=record.get("phone"),
-            salary=record.get("salary"),
-            iqama_number=record.get("iqama_number"),
-            iqama_expiry_date=record.get("iqama_expiry_date"),
+            **{f: record.get(f) for f in _EMPLOYEE_FIELDS},
         )
         db.add(row)
         db.commit()
@@ -86,6 +79,16 @@ def list_employees(limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
         total = q.count()
         rows = q.order_by(asc(Employee.full_name)).offset(offset).limit(limit).all()
         return [_row_to_dict(r) for r in rows], total
+    finally:
+        db.close()
+
+
+def list_all_employees_raw() -> list[dict]:
+    """يعيد كل الموظفين بلا حدود — يُستخدم لحسابات النطاقات وتنبيهات الإقامة."""
+    db = SessionLocal()
+    try:
+        rows = db.query(Employee).all()
+        return [_row_to_dict(r) for r in rows]
     finally:
         db.close()
 

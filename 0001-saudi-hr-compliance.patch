@@ -1,0 +1,1476 @@
+From a4622d22d7320b28db50aa514ee520479be79ac5 Mon Sep 17 00:00:00 2001
+From: Claude <claude@anthropic.com>
+Date: Sun, 12 Jul 2026 12:32:41 +0000
+Subject: [PATCH] =?UTF-8?q?=D8=A5=D8=B6=D8=A7=D9=81=D8=A9=20=D8=A7=D9=85?=
+ =?UTF-8?q?=D8=AA=D8=AB=D8=A7=D9=84=20=D9=86=D8=B8=D8=A7=D9=85=20=D8=A7?=
+ =?UTF-8?q?=D9=84=D8=B9=D9=85=D9=84=20=D8=A7=D9=84=D8=B3=D8=B9=D9=88=D8=AF?=
+ =?UTF-8?q?=D9=8A:=20GOSI=D8=8C=20=D9=85=D9=83=D8=A7=D9=81=D8=A3=D8=A9=20?=
+ =?UTF-8?q?=D9=86=D9=87=D8=A7=D9=8A=D8=A9=20=D8=A7=D9=84=D8=AE=D8=AF=D9=85?=
+ =?UTF-8?q?=D8=A9=D8=8C=20=D9=86=D8=B7=D8=A7=D9=82=D8=A7=D8=AA=D8=8C=20?=
+ =?UTF-8?q?=D8=AA=D9=86=D8=A8=D9=8A=D9=87=D8=A7=D8=AA=20=D8=A7=D9=84=D8=A5?=
+ =?UTF-8?q?=D9=82=D8=A7=D9=85=D8=A9?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- وحدة جديدة app/services/saudi_labor_law.py تحسب:
+  * اشتراكات التأمينات الاجتماعية (GOSI) بنظاميها القائم والجديد مع سقف 45,000 ريال
+  * مكافأة نهاية الخدمة وفق المادتين 84 و85 (استقالة/إنهاء/فصل تأديبي)
+  * استحقاق الإجازة السنوية، فترة التجربة، مهلة الإشعار، الإجازة المرضية
+  * نسبة السعودة التقديرية (مؤشر نطاقات تقريبي مع تنبيه بضرورة الرجوع لـ qiwa.sa)
+  * تنبيهات انتهاء الإقامة (عاجل/تحذير/منتهية)
+- حقول جديدة في نموذج الموظف: hire_date, basic_salary, housing_allowance,
+  other_allowances, contract_type, contract_end_date, probation_end_date,
+  national_id, gosi_registered_before_2024 + migration Alembic كاملة (upgrade/downgrade)
+- 6 نقاط API جديدة تحت /api/v1/compliance/*
+- توسيع أدوات AI Command Center (agent_tools.py) لدعم هذه الحسابات عبر المحادثة الطبيعية
+- تحديث استيراد/تصدير Excel للموظفين ليشمل الحقول الجديدة
+- 16 اختبار وحدة جديد (tests/test_saudi_labor_law.py) — كلها تمر بنجاح
+- تم اختبار الترحيل (migration) upgrade/downgrade وكل نقاط API فعليًا على قاعدة PostgreSQL محلية
+
+⚠️ كل الحسابات تقديرية لأغراض المساعدة الإدارية الأولية، مع رسائل تنبيه واضحة
+بالرجوع للجهات الرسمية (hrsd.gov.sa, qiwa.sa, gosi.gov.sa) قبل الاعتماد النهائي.
+---
+ ...dd_saudi_compliance_fields_to_employees.py |  44 ++
+ backend/app/api/routes.py                     | 165 ++++++-
+ backend/app/models/employee.py                |  16 +-
+ backend/app/schemas/employees.py              |  53 ++-
+ backend/app/services/agent_tools.py           | 222 +++++++++
+ backend/app/services/employee_import.py       |  40 +-
+ backend/app/services/employee_store.py        |  43 +-
+ backend/app/services/saudi_labor_law.py       | 449 ++++++++++++++++++
+ backend/tests/test_saudi_labor_law.py         | 168 +++++++
+ 9 files changed, 1171 insertions(+), 29 deletions(-)
+ create mode 100644 backend/alembic/versions/f15c4edf88cb_add_saudi_compliance_fields_to_employees.py
+ create mode 100644 backend/app/services/saudi_labor_law.py
+ create mode 100644 backend/tests/test_saudi_labor_law.py
+
+diff --git a/backend/alembic/versions/f15c4edf88cb_add_saudi_compliance_fields_to_employees.py b/backend/alembic/versions/f15c4edf88cb_add_saudi_compliance_fields_to_employees.py
+new file mode 100644
+index 0000000..6d7ccda
+--- /dev/null
++++ b/backend/alembic/versions/f15c4edf88cb_add_saudi_compliance_fields_to_employees.py
+@@ -0,0 +1,44 @@
++"""add_saudi_compliance_fields_to_employees
++
++Revision ID: f15c4edf88cb
++Revises: 5810624bd1be
++Create Date: 2026-07-12 00:00:00.000000
++
++"""
++from typing import Sequence, Union
++
++from alembic import op
++import sqlalchemy as sa
++
++
++# revision identifiers, used by Alembic.
++revision: str = 'f15c4edf88cb'
++down_revision: Union[str, Sequence[str], None] = '5810624bd1be'
++branch_labels: Union[str, Sequence[str], None] = None
++depends_on: Union[str, Sequence[str], None] = None
++
++
++def upgrade() -> None:
++    """إضافة حقول الامتثال لنظام العمل السعودي إلى جدول الموظفين."""
++    op.add_column('employees', sa.Column('national_id', sa.String(length=16), nullable=True))
++    op.add_column('employees', sa.Column('hire_date', sa.String(length=16), nullable=True))
++    op.add_column('employees', sa.Column('basic_salary', sa.Float(), nullable=True))
++    op.add_column('employees', sa.Column('housing_allowance', sa.Float(), nullable=True, server_default='0'))
++    op.add_column('employees', sa.Column('other_allowances', sa.Float(), nullable=True, server_default='0'))
++    op.add_column('employees', sa.Column('contract_type', sa.String(length=16), nullable=True, server_default='unlimited'))
++    op.add_column('employees', sa.Column('contract_end_date', sa.String(length=16), nullable=True))
++    op.add_column('employees', sa.Column('probation_end_date', sa.String(length=16), nullable=True))
++    op.add_column('employees', sa.Column('gosi_registered_before_2024', sa.Boolean(), nullable=True, server_default='true'))
++
++
++def downgrade() -> None:
++    """التراجع عن حقول الامتثال."""
++    op.drop_column('employees', 'gosi_registered_before_2024')
++    op.drop_column('employees', 'probation_end_date')
++    op.drop_column('employees', 'contract_end_date')
++    op.drop_column('employees', 'contract_type')
++    op.drop_column('employees', 'other_allowances')
++    op.drop_column('employees', 'housing_allowance')
++    op.drop_column('employees', 'basic_salary')
++    op.drop_column('employees', 'hire_date')
++    op.drop_column('employees', 'national_id')
+diff --git a/backend/app/api/routes.py b/backend/app/api/routes.py
+index 1a85116..6534335 100644
+--- a/backend/app/api/routes.py
++++ b/backend/app/api/routes.py
+@@ -37,6 +37,8 @@ from app.schemas.employees import (
+     Employee,
+     EmployeeCreateRequest,
+     EmployeeUpdateRequest,
++    EndOfServiceRequest,
++    GosiCalcRequest,
+     ImportResult,
+ )
+ from app.schemas.criteria import (
+@@ -92,10 +94,22 @@ from app.services.employee_import import EmployeeImportError, generate_template_
+ from app.services.employee_store import (
+     delete_employee,
+     get_employee,
++    list_all_employees_raw,
+     list_employees,
+     save_employee,
+     update_employee,
+ )
++from app.services.saudi_labor_law import (
++    calculate_end_of_service,
++    calculate_gosi,
++    calculate_saudization,
++    check_iqama_expiry,
++    annual_leave_days,
++    probation_info,
++    sick_leave_schedule,
++    NOTICE_PERIOD_INFO_AR,
++    SEPARATION_TYPES,
++)
+ from app.services.interview_questions import (
+     QuestionGenerationError,
+     generate_interview_questions,
+@@ -434,7 +448,11 @@ def export_employees_excel(_admin: None = Depends(require_admin)) -> Response:
+     wb = Workbook()
+     ws = wb.active
+     ws.title = "الموظفون"
+-    headers = ["الاسم", "الرقم الوظيفي", "الجنسية", "المسمى الوظيفي", "الجوال", "الراتب", "رقم الإقامة", "تاريخ انتهاء الإقامة"]
++    headers = [
++        "الاسم", "الرقم الوظيفي", "الجنسية", "المسمى الوظيفي", "الجوال", "الراتب",
++        "رقم الإقامة", "تاريخ انتهاء الإقامة", "رقم الهوية", "تاريخ التعيين",
++        "الراتب الأساسي", "بدل السكن", "بدلات أخرى", "نوع العقد", "تاريخ نهاية العقد",
++    ]
+     ws.append(headers)
+     for e in items:
+         ws.append([
+@@ -446,6 +464,13 @@ def export_employees_excel(_admin: None = Depends(require_admin)) -> Response:
+             e.get("salary"),
+             e.get("iqama_number", ""),
+             e.get("iqama_expiry_date", ""),
++            e.get("national_id", ""),
++            e.get("hire_date", ""),
++            e.get("basic_salary"),
++            e.get("housing_allowance"),
++            e.get("other_allowances"),
++            e.get("contract_type", ""),
++            e.get("contract_end_date", ""),
+         ])
+     buffer = BytesIO()
+     wb.save(buffer)
+@@ -487,6 +512,144 @@ async def import_employees(
+     return {"imported": len(employees), "errors": errors}
+ 
+ 
++# ============================================================================
++# الامتثال لنظام العمل السعودي — GOSI، مكافأة نهاية الخدمة، نطاقات، الإقامات
++# ============================================================================
++
++@router.get("/compliance/employees/{employee_id}/gosi")
++def get_employee_gosi(
++    employee_id: str, _admin: None = Depends(require_admin),
++) -> dict:
++    """يحسب اشتراك التأمينات الاجتماعية (GOSI) الشهري التقديري لموظف محدد."""
++    emp = get_employee(employee_id)
++    if emp is None:
++        raise HTTPException(status_code=404, detail="الموظف غير موجود")
++
++    basic = emp.get("basic_salary") or emp.get("salary") or 0.0
++    housing = emp.get("housing_allowance") or 0.0
++    result = calculate_gosi(
++        basic_salary=basic,
++        housing_allowance=housing,
++        nationality=emp.get("nationality"),
++        registered_before_july_2024=emp.get("gosi_registered_before_2024")
++        if emp.get("gosi_registered_before_2024") is not None else True,
++    )
++    return result.to_dict()
++
++
++@router.post("/compliance/employees/{employee_id}/gosi")
++def post_employee_gosi(
++    employee_id: str, req: GosiCalcRequest, _admin: None = Depends(require_admin),
++) -> dict:
++    """نفس حساب GOSI لكن مع إمكانية تجاوز الراتب/نوع التسجيل لغرض المحاكاة."""
++    emp = get_employee(employee_id)
++    if emp is None:
++        raise HTTPException(status_code=404, detail="الموظف غير موجود")
++
++    basic = req.basic_salary_override if req.basic_salary_override is not None else (
++        emp.get("basic_salary") or emp.get("salary") or 0.0
++    )
++    housing = req.housing_allowance_override if req.housing_allowance_override is not None else (
++        emp.get("housing_allowance") or 0.0
++    )
++    registered_before = (
++        req.registered_before_july_2024 if req.registered_before_july_2024 is not None
++        else (emp.get("gosi_registered_before_2024") if emp.get("gosi_registered_before_2024") is not None else True)
++    )
++    result = calculate_gosi(
++        basic_salary=basic, housing_allowance=housing,
++        nationality=emp.get("nationality"), registered_before_july_2024=registered_before,
++    )
++    return result.to_dict()
++
++
++@router.post("/compliance/employees/{employee_id}/end-of-service")
++def post_end_of_service(
++    employee_id: str, req: EndOfServiceRequest, _admin: None = Depends(require_admin), request: Request = None,
++) -> dict:
++    """يحسب مكافأة نهاية الخدمة التقديرية لموظف عند إنهاء خدمته."""
++    emp = get_employee(employee_id)
++    if emp is None:
++        raise HTTPException(status_code=404, detail="الموظف غير موجود")
++    if not emp.get("hire_date"):
++        raise HTTPException(status_code=400, detail="لا يوجد تاريخ تعيين مسجّل لهذا الموظف")
++
++    basic = req.basic_salary_override if req.basic_salary_override is not None else (
++        emp.get("basic_salary") or emp.get("salary") or 0.0
++    )
++    housing = req.housing_allowance_override if req.housing_allowance_override is not None else (
++        emp.get("housing_allowance") or 0.0
++    )
++    other = req.other_allowances_override if req.other_allowances_override is not None else (
++        emp.get("other_allowances") or 0.0
++    )
++
++    try:
++        result = calculate_end_of_service(
++            hire_date=emp["hire_date"], end_date=req.end_date,
++            basic_salary=basic, housing_allowance=housing, other_fixed_allowances=other,
++            separation_type=req.separation_type,
++        )
++    except ValueError as e:
++        raise HTTPException(status_code=400, detail=str(e))
++
++    log_action("calculate_eos", "employee", employee_id,
++               {"name": emp.get("full_name"), "separation_type": req.separation_type},
++               ip_address=request.client.host if request and request.client else None)
++    return result.to_dict()
++
++
++@router.get("/compliance/employees/{employee_id}/leave")
++def get_employee_leave_info(
++    employee_id: str, _admin: None = Depends(require_admin),
++) -> dict:
++    """معلومات استحقاق الإجازة السنوية وفترة التجربة لموظف محدد."""
++    emp = get_employee(employee_id)
++    if emp is None:
++        raise HTTPException(status_code=404, detail="الموظف غير موجود")
++
++    years = None
++    if emp.get("hire_date"):
++        from datetime import date, datetime as dt
++        hire = dt.strptime(emp["hire_date"], "%Y-%m-%d").date()
++        years = (date.today() - hire).days / 365.0
++
++    return {
++        "years_of_service": round(years, 2) if years is not None else None,
++        "annual_leave_days": annual_leave_days(years) if years is not None else None,
++        "probation": probation_info(),
++        "notice_period": NOTICE_PERIOD_INFO_AR,
++        "sick_leave": sick_leave_schedule(),
++    }
++
++
++@router.get("/compliance/saudization")
++def get_saudization_report(_admin: None = Depends(require_admin)) -> dict:
++    """نسبة السعودة الإجمالية (تقديرية) عبر كل الموظفين المسجّلين."""
++    employees = list_all_employees_raw()
++    result = calculate_saudization(employees)
++    return result.to_dict()
++
++
++@router.get("/compliance/iqama-alerts")
++def get_iqama_alerts(_admin: None = Depends(require_admin)) -> dict:
++    """قائمة الموظفين ذوي الإقامات المنتهية أو التي تقترب من الانتهاء."""
++    employees = list_all_employees_raw()
++    alerts = check_iqama_expiry(employees)
++    return {
++        "alerts": alerts,
++        "urgent_count": sum(1 for a in alerts if a["level"] == "urgent"),
++        "expired_count": sum(1 for a in alerts if a["level"] == "expired"),
++        "warning_count": sum(1 for a in alerts if a["level"] == "warning"),
++    }
++
++
++@router.get("/compliance/separation-types")
++def get_separation_types(_admin: None = Depends(require_admin)) -> dict:
++    """قائمة أنواع إنهاء الخدمة المدعومة لحساب مكافأة نهاية الخدمة."""
++    return {"types": [{"key": k, "label_ar": v} for k, v in SEPARATION_TYPES.items()]}
++
++
+ @router.post("/analyze", response_model=CVAnalysisResult)
+ def post_analyze(req: CVAnalysisRequest, _admin: None = Depends(require_admin)) -> CVAnalysisResult:
+     """تحليل سيرة ذاتية مقابل معايير المجال."""
+diff --git a/backend/app/models/employee.py b/backend/app/models/employee.py
+index 328f294..fcdb05f 100644
+--- a/backend/app/models/employee.py
++++ b/backend/app/models/employee.py
+@@ -1,7 +1,7 @@
+ """نموذج الموظف في قاعدة البيانات."""
+ from __future__ import annotations
+ 
+-from sqlalchemy import Column, DateTime, Float, String
++from sqlalchemy import Boolean, Column, DateTime, Float, String
+ 
+ from app.core.database import Base
+ 
+@@ -16,6 +16,18 @@ class Employee(Base):
+     nationality = Column(String(64), nullable=True)
+     job_title = Column(String(255), nullable=True)
+     phone = Column(String(32), nullable=True)
+-    salary = Column(Float, nullable=True)
++    salary = Column(Float, nullable=True)  # إجمالي الراتب (قديم — للتوافق العكسي)
+     iqama_number = Column(String(32), nullable=True)
+     iqama_expiry_date = Column(String(16), nullable=True)
++
++    # --- حقول الامتثال لنظام العمل السعودي ---
++    national_id = Column(String(16), nullable=True)  # لمواطن سعودي (رقم الهوية الوطنية)
++    hire_date = Column(String(16), nullable=True)  # YYYY-MM-DD — تاريخ التعيين
++    basic_salary = Column(Float, nullable=True)  # الراتب الأساسي (لحساب GOSI ومكافأة نهاية الخدمة)
++    housing_allowance = Column(Float, nullable=True, default=0.0)
++    other_allowances = Column(Float, nullable=True, default=0.0)
++    contract_type = Column(String(16), nullable=True, default="unlimited")  # unlimited | limited
++    contract_end_date = Column(String(16), nullable=True)  # للعقود محددة المدة فقط
++    probation_end_date = Column(String(16), nullable=True)
++    gosi_registered_before_2024 = Column(Boolean, nullable=True, default=True)
++
+diff --git a/backend/app/schemas/employees.py b/backend/app/schemas/employees.py
+index 2668266..bc75dd4 100644
+--- a/backend/app/schemas/employees.py
++++ b/backend/app/schemas/employees.py
+@@ -1,4 +1,4 @@
+-"""مخططات بيانات الموظفين — رواتب، جنسيات، إقامات."""
++"""مخططات بيانات الموظفين — رواتب، جنسيات، إقامات، وامتثال نظام العمل السعودي."""
+ from __future__ import annotations
+ 
+ from pydantic import BaseModel, Field
+@@ -14,6 +14,17 @@ class EmployeeCreateRequest(BaseModel):
+     iqama_number: str | None = None
+     iqama_expiry_date: str | None = Field(None, description="تاريخ انتهاء الإقامة بصيغة YYYY-MM-DD")
+ 
++    # حقول الامتثال السعودي
++    national_id: str | None = Field(None, description="رقم الهوية الوطنية (للسعوديين)")
++    hire_date: str | None = Field(None, description="تاريخ التعيين YYYY-MM-DD")
++    basic_salary: float | None = Field(None, description="الراتب الأساسي (أساس GOSI ومكافأة نهاية الخدمة)")
++    housing_allowance: float | None = 0.0
++    other_allowances: float | None = 0.0
++    contract_type: str | None = Field("unlimited", description="unlimited أو limited")
++    contract_end_date: str | None = None
++    probation_end_date: str | None = None
++    gosi_registered_before_2024: bool | None = True
++
+ 
+ class EmployeeUpdateRequest(BaseModel):
+     full_name: str | None = None
+@@ -25,6 +36,16 @@ class EmployeeUpdateRequest(BaseModel):
+     iqama_number: str | None = None
+     iqama_expiry_date: str | None = None
+ 
++    national_id: str | None = None
++    hire_date: str | None = None
++    basic_salary: float | None = None
++    housing_allowance: float | None = None
++    other_allowances: float | None = None
++    contract_type: str | None = None
++    contract_end_date: str | None = None
++    probation_end_date: str | None = None
++    gosi_registered_before_2024: bool | None = None
++
+ 
+ class Employee(BaseModel):
+     id: str
+@@ -38,6 +59,16 @@ class Employee(BaseModel):
+     iqama_expiry_date: str | None = None
+     created_at: str
+ 
++    national_id: str | None = None
++    hire_date: str | None = None
++    basic_salary: float | None = None
++    housing_allowance: float | None = None
++    other_allowances: float | None = None
++    contract_type: str | None = None
++    contract_end_date: str | None = None
++    probation_end_date: str | None = None
++    gosi_registered_before_2024: bool | None = None
++
+ 
+ class ImportRowError(BaseModel):
+     row: int
+@@ -47,3 +78,23 @@ class ImportRowError(BaseModel):
+ class ImportResult(BaseModel):
+     imported: int
+     errors: list[ImportRowError]
++
++
++# --- طلبات أدوات الامتثال ---
++
++class EndOfServiceRequest(BaseModel):
++    end_date: str = Field(..., description="تاريخ انتهاء الخدمة YYYY-MM-DD")
++    separation_type: str = Field(
++        "employer_termination",
++        description="employer_termination | resignation | contract_end | article_80 | force_majeure_or_article_87",
++    )
++    # اختياري: تجاوز رواتب الموظف المخزنة برقم مخصص لغرض المحاكاة
++    basic_salary_override: float | None = None
++    housing_allowance_override: float | None = None
++    other_allowances_override: float | None = None
++
++
++class GosiCalcRequest(BaseModel):
++    basic_salary_override: float | None = None
++    housing_allowance_override: float | None = None
++    registered_before_july_2024: bool | None = None
+diff --git a/backend/app/services/agent_tools.py b/backend/app/services/agent_tools.py
+index 91278ed..2772b70 100644
+--- a/backend/app/services/agent_tools.py
++++ b/backend/app/services/agent_tools.py
+@@ -15,6 +15,15 @@ from app.services.application_store import list_applications, get_application, u
+ from app.services.job_store import list_jobs, get_job, save_job, update_job, delete_job
+ from app.services.audit_logger import log_action, list_logs
+ from app.services.employee_import import generate_template_excel
++from app.services.employee_store import list_all_employees_raw
++from app.services.saudi_labor_law import (
++    calculate_end_of_service,
++    calculate_gosi,
++    calculate_saudization,
++    check_iqama_expiry,
++    annual_leave_days,
++    probation_info,
++)
+ from app.services.auth import verify_session
+ from sqlalchemy import func
+ 
+@@ -104,6 +113,14 @@ TOOL_DEFINITIONS = [
+                 "salary": {"type": "number", "description": "الراتب (اختياري)"},
+                 "iqama_number": {"type": "string", "description": "رقم الإقامة (اختياري)"},
+                 "iqama_expiry_date": {"type": "string", "description": "تاريخ انتهاء الإقامة (اختياري)"},
++                "national_id": {"type": "string", "description": "رقم الهوية الوطنية للسعوديين (اختياري)"},
++                "hire_date": {"type": "string", "description": "تاريخ التعيين YYYY-MM-DD (اختياري)"},
++                "basic_salary": {"type": "number", "description": "الراتب الأساسي — أساس GOSI ومكافأة نهاية الخدمة (اختياري)"},
++                "housing_allowance": {"type": "number", "description": "بدل السكن الشهري (اختياري)"},
++                "other_allowances": {"type": "number", "description": "بدلات أخرى شهرية (اختياري)"},
++                "contract_type": {"type": "string", "description": "نوع العقد: unlimited أو limited (اختياري)"},
++                "contract_end_date": {"type": "string", "description": "تاريخ نهاية العقد للعقود محددة المدة (اختياري)"},
++                "gosi_registered_before_2024": {"type": "boolean", "description": "هل الموظف مسجل بالتأمينات قبل 3 يوليو 2024؟ (اختياري)"},
+             },
+             "required": ["full_name", "job_title"],
+         },
+@@ -121,6 +138,14 @@ TOOL_DEFINITIONS = [
+                 "job_title": {"type": "string", "description": "المسمى الوظيفي"},
+                 "phone": {"type": "string", "description": "رقم الجوال"},
+                 "salary": {"type": "number", "description": "الراتب"},
++                "national_id": {"type": "string", "description": "رقم الهوية الوطنية"},
++                "hire_date": {"type": "string", "description": "تاريخ التعيين YYYY-MM-DD"},
++                "basic_salary": {"type": "number", "description": "الراتب الأساسي"},
++                "housing_allowance": {"type": "number", "description": "بدل السكن الشهري"},
++                "other_allowances": {"type": "number", "description": "بدلات أخرى شهرية"},
++                "contract_type": {"type": "string", "description": "نوع العقد: unlimited أو limited"},
++                "contract_end_date": {"type": "string", "description": "تاريخ نهاية العقد"},
++                "gosi_registered_before_2024": {"type": "boolean", "description": "مسجل بالتأمينات قبل 3 يوليو 2024؟"},
+             },
+             "required": ["employee_id"],
+         },
+@@ -203,6 +228,73 @@ TOOL_DEFINITIONS = [
+         "needs_confirmation": False,
+         "is_download": True,
+     },
++    {
++        "name": "calculate_end_of_service",
++        "description": (
++            "حساب مكافأة نهاية الخدمة التقديرية لموظف وفق نظام العمل السعودي "
++            "(المادتين 84 و85)، حسب تاريخ التعيين المسجل وسبب انتهاء الخدمة"
++        ),
++        "parameters": {
++            "type": "object",
++            "properties": {
++                "employee_id": {"type": "string", "description": "معرف الموظف"},
++                "end_date": {"type": "string", "description": "تاريخ انتهاء الخدمة YYYY-MM-DD"},
++                "separation_type": {
++                    "type": "string",
++                    "description": (
++                        "سبب الإنهاء: employer_termination (إنهاء من صاحب العمل)، "
++                        "resignation (استقالة)، contract_end (انتهاء عقد محدد)، "
++                        "article_80 (فصل تأديبي)، force_majeure_or_article_87 (ظروف قاهرة)"
++                    ),
++                    "default": "employer_termination",
++                },
++            },
++            "required": ["employee_id", "end_date"],
++        },
++        "needs_confirmation": False,
++    },
++    {
++        "name": "calculate_gosi_contribution",
++        "description": "حساب اشتراك التأمينات الاجتماعية (GOSI) الشهري التقديري لموظف",
++        "parameters": {
++            "type": "object",
++            "properties": {
++                "employee_id": {"type": "string", "description": "معرف الموظف"},
++            },
++            "required": ["employee_id"],
++        },
++        "needs_confirmation": False,
++    },
++    {
++        "name": "get_employee_leave_info",
++        "description": "استحقاق الإجازة السنوية وفترة التجربة ومهلة الإشعار لموظف محدد",
++        "parameters": {
++            "type": "object",
++            "properties": {
++                "employee_id": {"type": "string", "description": "معرف الموظف"},
++            },
++            "required": ["employee_id"],
++        },
++        "needs_confirmation": False,
++    },
++    {
++        "name": "get_saudization_report",
++        "description": "نسبة السعودة التقديرية الإجمالية (مؤشر نطاقات تقريبي) عبر كل الموظفين",
++        "parameters": {
++            "type": "object",
++            "properties": {},
++        },
++        "needs_confirmation": False,
++    },
++    {
++        "name": "get_iqama_alerts",
++        "description": "عرض الموظفين ذوي الإقامات المنتهية أو التي تقترب من الانتهاء (خلال 90 يومًا)",
++        "parameters": {
++            "type": "object",
++            "properties": {},
++        },
++        "needs_confirmation": False,
++    },
+ ]
+ 
+ 
+@@ -470,3 +562,133 @@ def _handle_export_applications_report() -> dict:
+         "data_base64": base64.b64encode(buffer.getvalue()).decode(),
+         "summary_ar": "تم تجهيز تقرير الطلبات للتحميل",
+     }
++
++
++def _handle_calculate_end_of_service(employee_id: str, end_date: str, separation_type: str = "employer_termination") -> dict:
++    emp = get_employee(employee_id)
++    if emp is None:
++        return {"error": "الموظف غير موجود"}
++    if not emp.get("hire_date"):
++        return {"error": f"لا يوجد تاريخ تعيين مسجّل للموظف {emp.get('full_name')}. أضِف تاريخ التعيين أولًا."}
++
++    basic = emp.get("basic_salary") or emp.get("salary") or 0.0
++    housing = emp.get("housing_allowance") or 0.0
++    other = emp.get("other_allowances") or 0.0
++
++    try:
++        result = calculate_end_of_service(
++            hire_date=emp["hire_date"], end_date=end_date,
++            basic_salary=basic, housing_allowance=housing, other_fixed_allowances=other,
++            separation_type=separation_type,
++        )
++    except ValueError as e:
++        return {"error": str(e)}
++
++    data = result.to_dict()
++    log_action("calculate_eos", "employee", employee_id,
++               {"name": emp.get("full_name"), "separation_type": separation_type}, username="ai_agent")
++
++    return {
++        "calculation": data,
++        "summary_ar": (
++            f"مكافأة نهاية الخدمة التقديرية للموظف {emp.get('full_name')}:\n"
++            f"• سنوات الخدمة: {data['years_of_service']}\n"
++            f"• سبب الإنهاء: {data['separation_type_label_ar']}\n"
++            f"• المكافأة الكاملة: {data['full_gratuity']:,.2f} ريال\n"
++            f"• المستحق فعليًا: {data['payable_gratuity']:,.2f} ريال ({data['reduction_label_ar']})\n"
++            f"⚠️ رقم تقديري لأغراض المساعدة الأولية فقط — راجع حاسبة hrsd.gov.sa أو مختصًا قبل الاعتماد النهائي."
++        ),
++    }
++
++
++def _handle_calculate_gosi_contribution(employee_id: str) -> dict:
++    emp = get_employee(employee_id)
++    if emp is None:
++        return {"error": "الموظف غير موجود"}
++
++    basic = emp.get("basic_salary") or emp.get("salary") or 0.0
++    housing = emp.get("housing_allowance") or 0.0
++    result = calculate_gosi(
++        basic_salary=basic, housing_allowance=housing, nationality=emp.get("nationality"),
++        registered_before_july_2024=emp.get("gosi_registered_before_2024")
++        if emp.get("gosi_registered_before_2024") is not None else True,
++    )
++    data = result.to_dict()
++
++    return {
++        "calculation": data,
++        "summary_ar": (
++            f"اشتراك التأمينات الاجتماعية (GOSI) التقديري للموظف {emp.get('full_name')}:\n"
++            f"• الأجر الخاضع للاشتراك: {data['contributory_wage']:,.2f} ريال\n"
++            f"• حصة الموظف ({data['employee_rate_percent']}%): {data['employee_contribution']:,.2f} ريال\n"
++            f"• حصة صاحب العمل ({data['employer_rate_percent']}%): {data['employer_contribution']:,.2f} ريال\n"
++            f"• الإجمالي الشهري: {data['total_contribution']:,.2f} ريال"
++        ),
++    }
++
++
++def _handle_get_employee_leave_info(employee_id: str) -> dict:
++    emp = get_employee(employee_id)
++    if emp is None:
++        return {"error": "الموظف غير موجود"}
++
++    years = None
++    if emp.get("hire_date"):
++        from datetime import date as _date
++        hire = datetime.strptime(emp["hire_date"], "%Y-%m-%d").date()
++        years = (_date.today() - hire).days / 365.0
++
++    leave_days = annual_leave_days(years) if years is not None else 21
++    probation = probation_info()
++
++    return {
++        "years_of_service": round(years, 2) if years is not None else None,
++        "annual_leave_days": leave_days,
++        "probation": probation,
++        "summary_ar": (
++            f"معلومات إجازات الموظف {emp.get('full_name')}:\n"
++            + (f"• سنوات الخدمة: {round(years, 2)}\n" if years is not None else "• لا يوجد تاريخ تعيين مسجّل\n")
++            + f"• استحقاق الإجازة السنوية: {leave_days} يومًا\n"
++            + f"• {probation['note_ar']}"
++        ),
++    }
++
++
++def _handle_get_saudization_report() -> dict:
++    employees = list_all_employees_raw()
++    result = calculate_saudization(employees)
++    data = result.to_dict()
++    return {
++        "report": data,
++        "summary_ar": (
++            f"تقرير السعودة التقديري:\n"
++            f"• إجمالي الموظفين: {data['total_employees']}\n"
++            f"• السعوديون: {data['saudi_employees']}\n"
++            f"• غير السعوديين: {data['non_saudi_employees']}\n"
++            f"• نسبة السعودة: {data['saudization_percent']}%\n"
++            f"• التصنيف التقريبي: {data['rough_band_ar']}\n"
++            f"{data['disclaimer_ar']}"
++        ),
++    }
++
++
++def _handle_get_iqama_alerts() -> dict:
++    employees = list_all_employees_raw()
++    alerts = check_iqama_expiry(employees)
++    urgent = [a for a in alerts if a["level"] == "urgent"]
++    expired = [a for a in alerts if a["level"] == "expired"]
++
++    if not alerts:
++        summary = "لا توجد إقامات منتهية أو قريبة من الانتهاء حاليًا ✅"
++    else:
++        lines = [f"تنبيهات الإقامات ({len(alerts)}):"]
++        for a in alerts[:10]:
++            lines.append(f"• {a['full_name']}: {a['level_label_ar']} (تنتهي {a['iqama_expiry_date']})")
++        summary = "\n".join(lines)
++
++    return {
++        "alerts": alerts,
++        "urgent_count": len(urgent),
++        "expired_count": len(expired),
++        "summary_ar": summary,
++    }
+diff --git a/backend/app/services/employee_import.py b/backend/app/services/employee_import.py
+index 6c374b5..259459d 100644
+--- a/backend/app/services/employee_import.py
++++ b/backend/app/services/employee_import.py
+@@ -26,11 +26,21 @@ COLUMN_ALIASES: dict[str, list[str]] = {
+         "expiry date",
+         "expiry_date",
+     ],
++    "national_id": ["رقم الهوية", "رقم الهوية الوطنية", "national id", "national_id"],
++    "hire_date": ["تاريخ التعيين", "تاريخ الالتحاق", "hire date", "hire_date", "start date"],
++    "basic_salary": ["الراتب الأساسي", "الراتب الاساسي", "basic salary", "basic_salary"],
++    "housing_allowance": ["بدل السكن", "بدل سكن", "housing allowance", "housing_allowance"],
++    "other_allowances": ["بدلات أخرى", "بدلات اخرى", "other allowances", "other_allowances"],
++    "contract_type": ["نوع العقد", "contract type", "contract_type"],
++    "contract_end_date": ["تاريخ نهاية العقد", "contract end date", "contract_end_date"],
++    "probation_end_date": ["تاريخ نهاية التجربة", "probation end date", "probation_end_date"],
+ }
+ 
+ TEMPLATE_HEADERS_AR = [
+     "الاسم", "الرقم الوظيفي", "الجنسية", "المسمى الوظيفي",
+     "رقم الجوال", "الراتب", "رقم الإقامة", "تاريخ انتهاء الإقامة",
++    "رقم الهوية", "تاريخ التعيين", "الراتب الأساسي", "بدل السكن",
++    "بدلات أخرى", "نوع العقد", "تاريخ نهاية العقد", "تاريخ نهاية التجربة",
+ ]
+ 
+ 
+@@ -60,7 +70,7 @@ def _match_columns(header_row: tuple) -> dict[str, int]:
+     return mapping
+ 
+ 
+-def _parse_expiry(value) -> str | None:
++def _parse_date_cell(value) -> str | None:
+     if value is None:
+         return None
+     if isinstance(value, datetime):
+@@ -70,7 +80,11 @@ def _parse_expiry(value) -> str | None:
+     return str(value).strip() or None
+ 
+ 
+-def _parse_salary(value) -> float | None:
++# اسم قديم يُستخدم أيضًا لتواريخ الإقامة تحديدًا (تم إبقاؤه للتوافق العكسي)
++_parse_expiry = _parse_date_cell
++
++
++def _parse_number(value) -> float | None:
+     if value is None or str(value).strip() == "":
+         return None
+     try:
+@@ -114,6 +128,11 @@ def parse_employees_excel(content: bytes) -> tuple[list[dict], list[dict]]:
+             errors.append({"row": row_num, "reason": "لا يوجد اسم في هذا الصف"})
+             continue
+ 
++        contract_type_raw = _clean_str(get(row, "contract_type"))
++        contract_type = "limited" if contract_type_raw and "محدد" in contract_type_raw and "غير" not in contract_type_raw else (
++            contract_type_raw if contract_type_raw in ("limited", "unlimited") else "unlimited"
++        )
++
+         employees.append(
+             {
+                 "full_name": str(full_name).strip(),
+@@ -121,9 +140,17 @@ def parse_employees_excel(content: bytes) -> tuple[list[dict], list[dict]]:
+                 "nationality": _clean_str(get(row, "nationality")),
+                 "job_title": _clean_str(get(row, "job_title")),
+                 "phone": _clean_str(get(row, "phone")),
+-                "salary": _parse_salary(get(row, "salary")),
++                "salary": _parse_number(get(row, "salary")),
+                 "iqama_number": _clean_str(get(row, "iqama_number")),
+-                "iqama_expiry_date": _parse_expiry(get(row, "iqama_expiry_date")),
++                "iqama_expiry_date": _parse_date_cell(get(row, "iqama_expiry_date")),
++                "national_id": _clean_str(get(row, "national_id")),
++                "hire_date": _parse_date_cell(get(row, "hire_date")),
++                "basic_salary": _parse_number(get(row, "basic_salary")),
++                "housing_allowance": _parse_number(get(row, "housing_allowance")) or 0.0,
++                "other_allowances": _parse_number(get(row, "other_allowances")) or 0.0,
++                "contract_type": contract_type,
++                "contract_end_date": _parse_date_cell(get(row, "contract_end_date")),
++                "probation_end_date": _parse_date_cell(get(row, "probation_end_date")),
+             }
+         )
+ 
+@@ -135,7 +162,10 @@ def generate_template_excel() -> bytes:
+     sheet = workbook.active
+     sheet.title = "الموظفون"
+     sheet.append(TEMPLATE_HEADERS_AR)
+-    sheet.append(["محمد أحمد", "1001", "سعودي", "محاسب أول", "0500000000", 8000, "1234567890", "2027-01-15"])
++    sheet.append([
++        "محمد أحمد", "1001", "سعودي", "محاسب أول", "0500000000", 8000, "1234567890", "2027-01-15",
++        "1012345678", "2023-03-01", 6500, 1500, 0, "غير محدد المدة", "", "2023-05-30",
++    ])
+ 
+     buffer = BytesIO()
+     workbook.save(buffer)
+diff --git a/backend/app/services/employee_store.py b/backend/app/services/employee_store.py
+index 7d26964..c9acaaa 100644
+--- a/backend/app/services/employee_store.py
++++ b/backend/app/services/employee_store.py
+@@ -9,20 +9,20 @@ from sqlalchemy import asc
+ from app.core.database import SessionLocal
+ from app.models.employee import Employee
+ 
++# الحقول القابلة للتخزين/التعديل على نموذج الموظف
++_EMPLOYEE_FIELDS = [
++    "full_name", "employee_number", "nationality", "job_title", "phone", "salary",
++    "iqama_number", "iqama_expiry_date", "national_id", "hire_date", "basic_salary",
++    "housing_allowance", "other_allowances", "contract_type", "contract_end_date",
++    "probation_end_date", "gosi_registered_before_2024",
++]
++
+ 
+ def _row_to_dict(row: Employee) -> dict:
+-    return {
+-        "id": row.id,
+-        "created_at": row.created_at.isoformat() if row.created_at else None,
+-        "full_name": row.full_name,
+-        "employee_number": row.employee_number,
+-        "nationality": row.nationality,
+-        "job_title": row.job_title,
+-        "phone": row.phone,
+-        "salary": row.salary,
+-        "iqama_number": row.iqama_number,
+-        "iqama_expiry_date": row.iqama_expiry_date,
+-    }
++    data = {"id": row.id, "created_at": row.created_at.isoformat() if row.created_at else None}
++    for f in _EMPLOYEE_FIELDS:
++        data[f] = getattr(row, f, None)
++    return data
+ 
+ 
+ def save_employee(record: dict) -> str:
+@@ -32,14 +32,7 @@ def save_employee(record: dict) -> str:
+         row = Employee(
+             id=emp_id,
+             created_at=datetime.now(timezone.utc),
+-            full_name=record.get("full_name", ""),
+-            employee_number=record.get("employee_number"),
+-            nationality=record.get("nationality"),
+-            job_title=record.get("job_title"),
+-            phone=record.get("phone"),
+-            salary=record.get("salary"),
+-            iqama_number=record.get("iqama_number"),
+-            iqama_expiry_date=record.get("iqama_expiry_date"),
++            **{f: record.get(f) for f in _EMPLOYEE_FIELDS},
+         )
+         db.add(row)
+         db.commit()
+@@ -90,6 +83,16 @@ def list_employees(limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
+         db.close()
+ 
+ 
++def list_all_employees_raw() -> list[dict]:
++    """يعيد كل الموظفين بلا حدود — يُستخدم لحسابات النطاقات وتنبيهات الإقامة."""
++    db = SessionLocal()
++    try:
++        rows = db.query(Employee).all()
++        return [_row_to_dict(r) for r in rows]
++    finally:
++        db.close()
++
++
+ def get_employee(emp_id: str) -> dict | None:
+     db = SessionLocal()
+     try:
+diff --git a/backend/app/services/saudi_labor_law.py b/backend/app/services/saudi_labor_law.py
+new file mode 100644
+index 0000000..6675d07
+--- /dev/null
++++ b/backend/app/services/saudi_labor_law.py
+@@ -0,0 +1,449 @@
++"""منطق الامتثال لنظام العمل السعودي، نظام التأمينات الاجتماعية (GOSI)، وبرنامج نطاقات.
++
++المرجعية القانونية (بحسب أحدث تحديث متاح وقت كتابة هذا الملف):
++- نظام العمل السعودي الصادر بالمرسوم الملكي رقم م/51 وتعديلاته — المواد 75، 79 مكرر،
++  80، 84، 85، 87، 109.
++- نظام التأمينات الاجتماعية الجديد الساري اعتبارًا من 3 يوليو 2024، مع جدول زيادة
++  تدريجية سنوية حتى عام 2028.
++- برنامج نطاقات (التوطين) الصادر عن وزارة الموارد البشرية والتنمية الاجتماعية.
++
++⚠️ تنبيه مهم: هذه الحسابات **تقديرية** لأغراض المساعدة الإدارية الأولية فقط.
++لا تُغني عن استشارة مختص قانوني أو محاسبي مرخّص، أو الرجوع للأدوات الرسمية:
++- حاسبة مكافأة نهاية الخدمة: hrsd.gov.sa
++- حاسبة نطاقات الرسمية: qiwa.sa
++- التأمينات الاجتماعية: gosi.gov.sa
++القيم والنسب القانونية قابلة للتغيير بقرارات وزارية لاحقة.
++"""
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from datetime import date, datetime
++
++
++# ============================================================================
++# أدوات مشتركة
++# ============================================================================
++
++def _parse_date(value: str | date) -> date:
++    if isinstance(value, date):
++        return value
++    return datetime.strptime(value, "%Y-%m-%d").date()
++
++
++def _is_saudi_nationality(nationality: str | None) -> bool:
++    """يحدد إن كانت الجنسية سعودية من نص حر (سعودي/سعودية/Saudi/KSA...)."""
++    if not nationality:
++        return False
++    n = nationality.strip().lower()
++    saudi_markers = ["سعود", "ksa", "saudi"]
++    return any(marker in n for marker in saudi_markers)
++
++
++# ============================================================================
++# 1) التأمينات الاجتماعية (GOSI)
++# ============================================================================
++
++GOSI_WAGE_CEILING = 45000.0  # الحد الأقصى الشهري للأجر الخاضع للاشتراك (ريال)
++
++# النظام القائم (قبل 3 يوليو 2024): نسب ثابتة
++EXISTING_SYSTEM_EMPLOYEE_RATE = 0.0975  # 9% تقاعد + 0.75% ساند
++EXISTING_SYSTEM_EMPLOYER_RATE = 0.1175  # 9% تقاعد + 2% أخطار مهنية + 0.75% ساند
++
++# النظام الجديد (لمن لا اشتراك سابق له قبل 3 يوليو 2024): زيادة تدريجية كل 1 يوليو
++# كل عنصر: (تاريخ بدء السريان, نسبة الموظف, نسبة صاحب العمل)
++NEW_SYSTEM_SCHEDULE: list[tuple[date, float, float]] = [
++    (date(2024, 7, 3), 0.0975, 0.1175),
++    (date(2025, 7, 1), 0.1025, 0.1225),
++    (date(2026, 7, 1), 0.1075, 0.1275),
++    (date(2027, 7, 1), 0.1125, 0.1325),
++    (date(2028, 7, 1), 0.1175, 0.1375),  # النسبة النهائية المستهدفة
++]
++
++NON_SAUDI_EMPLOYER_RATE = 0.02  # أخطار مهنية فقط — بلا خصم من الموظف وبلا تقاعد/ساند
++
++
++def _new_system_rates_for_date(as_of: date) -> tuple[float, float]:
++    applicable = NEW_SYSTEM_SCHEDULE[0]
++    for entry in NEW_SYSTEM_SCHEDULE:
++        if entry[0] <= as_of:
++            applicable = entry
++        else:
++            break
++    return applicable[1], applicable[2]
++
++
++@dataclass
++class GosiResult:
++    contributory_wage: float
++    is_saudi: bool
++    system: str  # "existing" | "new" | "non_saudi"
++    employee_rate: float
++    employer_rate: float
++    employee_contribution: float
++    employer_contribution: float
++    total_contribution: float
++    notes_ar: list[str] = field(default_factory=list)
++
++    def to_dict(self) -> dict:
++        return {
++            "contributory_wage": self.contributory_wage,
++            "is_saudi": self.is_saudi,
++            "system": self.system,
++            "employee_rate_percent": round(self.employee_rate * 100, 2),
++            "employer_rate_percent": round(self.employer_rate * 100, 2),
++            "employee_contribution": self.employee_contribution,
++            "employer_contribution": self.employer_contribution,
++            "total_contribution": self.total_contribution,
++            "notes_ar": self.notes_ar,
++        }
++
++
++def calculate_gosi(
++    basic_salary: float,
++    housing_allowance: float = 0.0,
++    nationality: str | None = None,
++    is_saudi: bool | None = None,
++    registered_before_july_2024: bool = True,
++    as_of: date | None = None,
++) -> GosiResult:
++    """يحسب اشتراك التأمينات الاجتماعية الشهري (تقديري).
++
++    الأجر الخاضع للاشتراك = الراتب الأساسي + بدل السكن فقط (وفق تعريف GOSI)،
++    بحد أقصى شهري 45,000 ريال.
++    """
++    as_of = as_of or date.today()
++    if is_saudi is None:
++        is_saudi = _is_saudi_nationality(nationality)
++
++    raw_wage = (basic_salary or 0.0) + (housing_allowance or 0.0)
++    contributory_wage = min(raw_wage, GOSI_WAGE_CEILING)
++    notes: list[str] = []
++    if raw_wage > GOSI_WAGE_CEILING:
++        notes.append(
++            f"الأجر الفعلي ({raw_wage:,.0f} ريال) يتجاوز سقف الاشتراك "
++            f"({GOSI_WAGE_CEILING:,.0f} ريال) — تم احتساب الاشتراك على السقف فقط."
++        )
++
++    if not is_saudi:
++        employer_rate = NON_SAUDI_EMPLOYER_RATE
++        employee_rate = 0.0
++        system = "non_saudi"
++        notes.append(
++            "الموظف غير سعودي: اشتراك أخطار مهنية فقط على صاحب العمل (2%)، "
++            "بلا خصم من راتب الموظف، وبلا تغطية تقاعد أو تأمين ضد التعطل (ساند)."
++        )
++    elif registered_before_july_2024:
++        employee_rate = EXISTING_SYSTEM_EMPLOYEE_RATE
++        employer_rate = EXISTING_SYSTEM_EMPLOYER_RATE
++        system = "existing"
++        notes.append("النظام القائم: نسب ثابتة 9.75% موظف / 11.75% صاحب عمل (المجموع 21.5%).")
++    else:
++        employee_rate, employer_rate = _new_system_rates_for_date(as_of)
++        system = "new"
++        notes.append(
++            "النظام الجديد (لموظف بلا اشتراك سابق قبل 3 يوليو 2024): "
++            "النسب ترتفع تدريجيًا 0.5% كل طرف في 1 يوليو من كل عام حتى الوصول "
++            "إلى 11.75%/13.75% في يوليو 2028."
++        )
++
++    employee_contribution = round(contributory_wage * employee_rate, 2)
++    employer_contribution = round(contributory_wage * employer_rate, 2)
++
++    return GosiResult(
++        contributory_wage=round(contributory_wage, 2),
++        is_saudi=is_saudi,
++        system=system,
++        employee_rate=employee_rate,
++        employer_rate=employer_rate,
++        employee_contribution=employee_contribution,
++        employer_contribution=employer_contribution,
++        total_contribution=round(employee_contribution + employer_contribution, 2),
++        notes_ar=notes,
++    )
++
++
++# ============================================================================
++# 2) مكافأة نهاية الخدمة (Articles 84, 85, 87)
++# ============================================================================
++
++SEPARATION_TYPES = {
++    "employer_termination": "إنهاء من صاحب العمل (بدون سبب مشروع بموجب المادة 80)",
++    "contract_end": "انتهاء مدة العقد المحدد",
++    "resignation": "استقالة الموظف",
++    "article_80": "فصل بسبب مشروع وفق المادة 80 (لا يستحق مكافأة)",
++    "force_majeure_or_article_87": "ظروف قاهرة / حالات المادة 87 الخاصة (تُصرف كاملة)",
++}
++
++
++@dataclass
++class EndOfServiceResult:
++    years_of_service: float
++    full_service_days: int
++    base_wage: float
++    full_gratuity: float
++    reduction_factor: float
++    reduction_label_ar: str
++    payable_gratuity: float
++    separation_type: str
++    notes_ar: list[str] = field(default_factory=list)
++
++    def to_dict(self) -> dict:
++        return {
++            "years_of_service": round(self.years_of_service, 2),
++            "full_service_days": self.full_service_days,
++            "base_wage": self.base_wage,
++            "full_gratuity": round(self.full_gratuity, 2),
++            "reduction_factor": self.reduction_factor,
++            "reduction_label_ar": self.reduction_label_ar,
++            "payable_gratuity": round(self.payable_gratuity, 2),
++            "separation_type": self.separation_type,
++            "separation_type_label_ar": SEPARATION_TYPES.get(self.separation_type, self.separation_type),
++            "notes_ar": self.notes_ar,
++        }
++
++
++def _resignation_reduction_factor(years: float) -> tuple[float, str]:
++    """معامل تخفيض المكافأة عند الاستقالة وفق المادة 85."""
++    if years < 2:
++        return 0.0, "أقل من سنتين: لا يستحق مكافأة عند الاستقالة"
++    if years < 5:
++        return 1 / 3, "من 2 إلى أقل من 5 سنوات: يستحق ثلث المكافأة"
++    if years < 10:
++        return 2 / 3, "من 5 إلى أقل من 10 سنوات: يستحق ثلثي المكافأة"
++    return 1.0, "10 سنوات فأكثر: يستحق المكافأة كاملة"
++
++
++def calculate_end_of_service(
++    hire_date: str | date,
++    end_date: str | date,
++    basic_salary: float,
++    housing_allowance: float = 0.0,
++    other_fixed_allowances: float = 0.0,
++    separation_type: str = "employer_termination",
++) -> EndOfServiceResult:
++    """يحسب مكافأة نهاية الخدمة وفق المادتين 84 و85.
++
++    أساس الاحتساب = آخر أجر فعلي (الراتب الأساسي + البدلات الثابتة المنتظمة
++    كالسكن والنقل)، وفق التعريف الشائع للأجر في المادة 2. بعض الجهات تحتسبها
++    على الراتب الأساسي فقط — تأكد من سياسة شركتك أو استشر مختصًا قبل الاعتماد
++    النهائي على الرقم.
++    """
++    hire = _parse_date(hire_date)
++    end = _parse_date(end_date)
++    if end < hire:
++        raise ValueError("تاريخ الانتهاء يجب أن يكون بعد تاريخ التعيين")
++
++    total_days = (end - hire).days
++    years = total_days / 365.0
++    monthly_wage = (basic_salary or 0.0) + (housing_allowance or 0.0) + (other_fixed_allowances or 0.0)
++
++    first_five = min(years, 5)
++    remaining = max(years - 5, 0)
++    full_gratuity = (first_five * 0.5 * monthly_wage) + (remaining * 1.0 * monthly_wage)
++
++    notes: list[str] = [
++        "الاحتساب: نصف شهر عن كل سنة من أول 5 سنوات، وشهر كامل عن كل سنة بعدها "
++        "(المادة 84)، بالتناسب لأجزاء السنة.",
++    ]
++
++    if separation_type == "article_80":
++        return EndOfServiceResult(
++            years_of_service=years, full_service_days=total_days, base_wage=monthly_wage,
++            full_gratuity=full_gratuity, reduction_factor=0.0,
++            reduction_label_ar="فصل تأديبي وفق المادة 80 — لا يستحق مكافأة نهاية خدمة",
++            payable_gratuity=0.0, separation_type=separation_type,
++            notes_ar=notes + ["الفصل بموجب المادة 80 (كالغياب أو الإخلال الجسيم) يُسقط الحق في المكافأة."],
++        )
++
++    if separation_type == "resignation":
++        factor, label = _resignation_reduction_factor(years)
++        payable = full_gratuity * factor
++        notes.append("تم تطبيق تخفيض الاستقالة وفق المادة 85 حسب سنوات الخدمة.")
++        return EndOfServiceResult(
++            years_of_service=years, full_service_days=total_days, base_wage=monthly_wage,
++            full_gratuity=full_gratuity, reduction_factor=factor, reduction_label_ar=label,
++            payable_gratuity=payable, separation_type=separation_type, notes_ar=notes,
++        )
++
++    # إنهاء من صاحب العمل / انتهاء عقد محدد / حالات المادة 87 → المكافأة كاملة
++    notes.append("هذا النوع من إنهاء الخدمة يستحق المكافأة كاملة دون تخفيض.")
++    return EndOfServiceResult(
++        years_of_service=years, full_service_days=total_days, base_wage=monthly_wage,
++        full_gratuity=full_gratuity, reduction_factor=1.0,
++        reduction_label_ar="مكافأة كاملة", payable_gratuity=full_gratuity,
++        separation_type=separation_type, notes_ar=notes,
++    )
++
++
++# ============================================================================
++# 3) الإجازات، فترة التجربة، مهلة الإشعار
++# ============================================================================
++
++def annual_leave_days(years_of_service: float) -> int:
++    """المادة 109: 21 يومًا، وترتفع إلى 30 يومًا بعد 5 سنوات خدمة متصلة."""
++    return 30 if years_of_service >= 5 else 21
++
++
++PROBATION_DEFAULT_DAYS = 90
++PROBATION_MAX_DAYS = 180  # بحد أقصى بموافقة كتابية من الموظف (تعديل فبراير 2025)
++
++NOTICE_PERIOD_INFO_AR = {
++    "employee_resignation_days": 30,
++    "employer_termination_days": 60,
++    "note_ar": (
++        "للعقود غير محددة المدة المدفوعة شهريًا: مهلة إشعار لا تقل عن 30 يومًا من "
++        "الموظف عند الاستقالة، و60 يومًا من صاحب العمل عند الإنهاء ما لم يتفق الطرفان "
++        "على خلاف ذلك في العقد (المادة 75 وتعديلاتها). يُنصح بمراجعة نص العقد الفعلي."
++    ),
++}
++
++
++def probation_info(agreed_days: int | None = None) -> dict:
++    days = agreed_days or PROBATION_DEFAULT_DAYS
++    days = min(days, PROBATION_MAX_DAYS)
++    return {
++        "probation_days": days,
++        "default_days": PROBATION_DEFAULT_DAYS,
++        "max_days": PROBATION_MAX_DAYS,
++        "note_ar": (
++            f"فترة التجربة الافتراضية {PROBATION_DEFAULT_DAYS} يومًا، ويجوز تمديدها "
++            f"بموافقة كتابية من الموظف بما لا يتجاوز {PROBATION_MAX_DAYS} يومًا إجمالًا."
++        ),
++    }
++
++
++def sick_leave_schedule() -> dict:
++    return {
++        "full_pay_days": 30,
++        "partial_pay_days": 60,
++        "partial_pay_percent": 75,
++        "unpaid_days": 30,
++        "total_days_per_year": 120,
++        "note_ar": "أول 30 يومًا بأجر كامل، ثم 60 يومًا بـ75% من الأجر، ثم 30 يومًا بلا أجر (المادة 117).",
++    }
++
++
++# ============================================================================
++# 4) نطاقات (Nitaqat) — تقدير تقريبي فقط
++# ============================================================================
++
++NITAQAT_DISCLAIMER_AR = (
++    "⚠️ نطاقات نظام دقيق يعتمد على النشاط الاقتصادي المسجل للمنشأة (ISIC4) وحجمها "
++    "الفعلي ومهن محددة (بعضها له حصص سعودة مستقلة كالمحاسبة والهندسة)، ولا توجد نسبة "
++    "موحّدة لكل الشركات. الرقم أدناه نسبة السعودة الفعلية في بياناتك فقط كمؤشر عام — "
++    "للتصنيف الرسمي الدقيق راجع حاسبة نطاقات على qiwa.sa."
++)
++
++
++@dataclass
++class SaudizationResult:
++    total_employees: int
++    saudi_employees: int
++    non_saudi_employees: int
++    saudization_percent: float
++    rough_band_ar: str
++    disclaimer_ar: str = NITAQAT_DISCLAIMER_AR
++
++    def to_dict(self) -> dict:
++        return {
++            "total_employees": self.total_employees,
++            "saudi_employees": self.saudi_employees,
++            "non_saudi_employees": self.non_saudi_employees,
++            "saudization_percent": round(self.saudization_percent, 1),
++            "rough_band_ar": self.rough_band_ar,
++            "disclaimer_ar": self.disclaimer_ar,
++        }
++
++
++def _rough_band(pct: float, total_employees: int) -> str:
++    """تصنيف تقريبي عام جدًا فقط للاستئناس — ليس التصنيف الرسمي."""
++    if total_employees <= 5:
++        # منشآت "كيان صغير أ" — تصنيف من فئتين فقط (أخضر/أحمر) حسب توظيف سعودي واحد
++        return "أخضر (تقريبي)" if pct > 0 else "أحمر (تقريبي)"
++    if pct < 4:
++        return "أحمر (تقريبي)"
++    if pct < 9:
++        return "أحمر إلى منخفض أخضر (تقريبي)"
++    if pct < 20:
++        return "أخضر منخفض/متوسط (تقريبي)"
++    if pct < 38:
++        return "أخضر متوسط/مرتفع (تقريبي)"
++    return "أخضر مرتفع/بلاتيني محتمل (تقريبي)"
++
++
++def calculate_saudization(employees: list[dict]) -> SaudizationResult:
++    """يحسب نسبة السعودة الإجمالية من قائمة موظفين (كل عنصر يحتوي 'nationality').
++
++    هذا حساب مبسّط على مستوى المنشأة ككل، ولا يراعي أوزان المهن أو الأجور
++    (نطاقات موزون) أو تصنيف الأنشطة — راجع الديسكليمر.
++    """
++    total = len(employees)
++    saudi = sum(1 for e in employees if _is_saudi_nationality(e.get("nationality")))
++    non_saudi = total - saudi
++    pct = (saudi / total * 100) if total else 0.0
++
++    return SaudizationResult(
++        total_employees=total,
++        saudi_employees=saudi,
++        non_saudi_employees=non_saudi,
++        saudization_percent=pct,
++        rough_band_ar=_rough_band(pct, total),
++    )
++
++
++# ============================================================================
++# 5) متابعة الإقامات — تنبيهات انتهاء
++# ============================================================================
++
++def days_until(target_date: str | date, as_of: date | None = None) -> int:
++    as_of = as_of or date.today()
++    return (_parse_date(target_date) - as_of).days
++
++
++def iqama_alert_level(days_remaining: int) -> str:
++    if days_remaining < 0:
++        return "expired"
++    if days_remaining <= 30:
++        return "urgent"
++    if days_remaining <= 90:
++        return "warning"
++    return "ok"
++
++
++IQAMA_ALERT_LABELS_AR = {
++    "expired": "منتهية الصلاحية",
++    "urgent": "عاجل — أقل من 30 يومًا",
++    "warning": "تنبيه — أقل من 90 يومًا",
++    "ok": "سارية",
++}
++
++
++def check_iqama_expiry(employees: list[dict], as_of: date | None = None) -> list[dict]:
++    """يفحص قائمة موظفين ويعيد فقط من لديهم إقامة تنتهي قريبًا أو منتهية.
++
++    كل عنصر إدخال متوقع أن يحتوي: id, full_name, iqama_number, iqama_expiry_date.
++    """
++    as_of = as_of or date.today()
++    alerts: list[dict] = []
++    for emp in employees:
++        expiry = emp.get("iqama_expiry_date")
++        if not expiry:
++            continue
++        try:
++            remaining = days_until(expiry, as_of)
++        except (ValueError, TypeError):
++            continue
++        level = iqama_alert_level(remaining)
++        if level == "ok":
++            continue
++        alerts.append({
++            "employee_id": emp.get("id"),
++            "full_name": emp.get("full_name"),
++            "iqama_number": emp.get("iqama_number"),
++            "iqama_expiry_date": expiry,
++            "days_remaining": remaining,
++            "level": level,
++            "level_label_ar": IQAMA_ALERT_LABELS_AR[level],
++        })
++    alerts.sort(key=lambda a: a["days_remaining"])
++    return alerts
+diff --git a/backend/tests/test_saudi_labor_law.py b/backend/tests/test_saudi_labor_law.py
+new file mode 100644
+index 0000000..70909ef
+--- /dev/null
++++ b/backend/tests/test_saudi_labor_law.py
+@@ -0,0 +1,168 @@
++"""اختبارات لا تحتاج قاعدة بيانات — تتحقق من صحة حسابات الامتثال السعودي."""
++import sys
++from datetime import date
++from pathlib import Path
++
++sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
++
++from app.services.saudi_labor_law import (
++    calculate_gosi,
++    calculate_end_of_service,
++    calculate_saudization,
++    check_iqama_expiry,
++    annual_leave_days,
++    probation_info,
++    days_until,
++)
++
++
++# ---------------------------------------------------------------------------
++# GOSI
++# ---------------------------------------------------------------------------
++
++def test_gosi_saudi_existing_system():
++    result = calculate_gosi(basic_salary=8000, housing_allowance=2000, is_saudi=True,
++                             registered_before_july_2024=True)
++    assert result.system == "existing"
++    assert result.contributory_wage == 10000
++    # 9.75% من 10000 = 975
++    assert result.employee_contribution == 975.0
++    # 11.75% من 10000 = 1175
++    assert result.employer_contribution == 1175.0
++
++
++def test_gosi_non_saudi_employer_only():
++    result = calculate_gosi(basic_salary=6000, housing_allowance=1000, is_saudi=False)
++    assert result.system == "non_saudi"
++    assert result.employee_contribution == 0.0
++    assert result.employer_contribution == round(7000 * 0.02, 2)
++
++
++def test_gosi_wage_ceiling_applied():
++    result = calculate_gosi(basic_salary=40000, housing_allowance=10000, is_saudi=True,
++                             registered_before_july_2024=True)
++    assert result.contributory_wage == 45000
++    assert len(result.notes_ar) >= 1
++
++
++def test_gosi_new_system_rate_for_2026():
++    result = calculate_gosi(
++        basic_salary=10000, housing_allowance=0, is_saudi=True,
++        registered_before_july_2024=False, as_of=date(2026, 8, 1),
++    )
++    assert result.system == "new"
++    # اعتبارًا من 1 يوليو 2026: 10.75% / 12.75%
++    assert round(result.employee_rate, 4) == 0.1075
++    assert round(result.employer_rate, 4) == 0.1275
++
++
++def test_gosi_infers_saudi_from_nationality_text():
++    result = calculate_gosi(basic_salary=5000, nationality="سعودي")
++    assert result.is_saudi is True
++    result2 = calculate_gosi(basic_salary=5000, nationality="Egyptian")
++    assert result2.is_saudi is False
++
++
++# ---------------------------------------------------------------------------
++# End of service gratuity
++# ---------------------------------------------------------------------------
++
++def test_eos_termination_under_five_years():
++    result = calculate_end_of_service(
++        hire_date="2022-01-01", end_date="2024-01-01",
++        basic_salary=6000, separation_type="employer_termination",
++    )
++    # سنتان × نصف شهر = شهر كامل من الراتب تقريبًا
++    assert 5800 < result.payable_gratuity < 6200
++
++
++def test_eos_resignation_under_two_years_gets_nothing():
++    result = calculate_end_of_service(
++        hire_date="2024-01-01", end_date="2025-06-01",
++        basic_salary=5000, separation_type="resignation",
++    )
++    assert result.payable_gratuity == 0.0
++
++
++def test_eos_resignation_between_five_and_ten_gets_two_thirds():
++    result = calculate_end_of_service(
++        hire_date="2016-01-01", end_date="2023-01-01",
++        basic_salary=10000, separation_type="resignation",
++    )
++    assert round(result.reduction_factor, 3) == round(2 / 3, 3)
++
++
++def test_eos_article_80_gets_nothing():
++    result = calculate_end_of_service(
++        hire_date="2015-01-01", end_date="2023-01-01",
++        basic_salary=10000, separation_type="article_80",
++    )
++    assert result.payable_gratuity == 0.0
++
++
++def test_eos_rejects_end_before_hire():
++    try:
++        calculate_end_of_service(hire_date="2024-01-01", end_date="2023-01-01", basic_salary=5000)
++        assert False, "should have raised"
++    except ValueError:
++        pass
++
++
++# ---------------------------------------------------------------------------
++# الإجازات وفترة التجربة
++# ---------------------------------------------------------------------------
++
++def test_annual_leave_before_and_after_five_years():
++    assert annual_leave_days(3) == 21
++    assert annual_leave_days(5) == 30
++    assert annual_leave_days(9) == 30
++
++
++def test_probation_capped_at_max():
++    info = probation_info(agreed_days=200)
++    assert info["probation_days"] == 180
++
++
++# ---------------------------------------------------------------------------
++# نطاقات (Nitaqat) تقديري
++# ---------------------------------------------------------------------------
++
++def test_saudization_percent_calculation():
++    employees = [
++        {"nationality": "سعودي"},
++        {"nationality": "سعودي"},
++        {"nationality": "Egyptian"},
++        {"nationality": "Indian"},
++    ]
++    result = calculate_saudization(employees)
++    assert result.total_employees == 4
++    assert result.saudi_employees == 2
++    assert result.saudization_percent == 50.0
++
++
++def test_saudization_empty_list():
++    result = calculate_saudization([])
++    assert result.saudization_percent == 0.0
++
++
++# ---------------------------------------------------------------------------
++# تنبيهات الإقامة
++# ---------------------------------------------------------------------------
++
++def test_iqama_alerts_flags_urgent_and_expired():
++    today = date(2026, 7, 12)
++    employees = [
++        {"id": "1", "full_name": "أحمد", "iqama_expiry_date": "2026-07-20"},  # عاجل
++        {"id": "2", "full_name": "محمد", "iqama_expiry_date": "2026-06-01"},  # منتهية
++        {"id": "3", "full_name": "سالم", "iqama_expiry_date": "2027-07-01"},  # سارية
++    ]
++    alerts = check_iqama_expiry(employees, as_of=today)
++    ids = {a["employee_id"] for a in alerts}
++    assert ids == {"1", "2"}
++    levels = {a["employee_id"]: a["level"] for a in alerts}
++    assert levels["1"] == "urgent"
++    assert levels["2"] == "expired"
++
++
++def test_days_until_helper():
++    assert days_until("2026-07-20", as_of=date(2026, 7, 12)) == 8
+-- 
+2.43.0
+

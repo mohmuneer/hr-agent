@@ -37,6 +37,8 @@ from app.schemas.employees import (
     Employee,
     EmployeeCreateRequest,
     EmployeeUpdateRequest,
+    EndOfServiceRequest,
+    GosiCalcRequest,
     ImportResult,
 )
 from app.schemas.criteria import (
@@ -92,9 +94,21 @@ from app.services.employee_import import EmployeeImportError, generate_template_
 from app.services.employee_store import (
     delete_employee,
     get_employee,
+    list_all_employees_raw,
     list_employees,
     save_employee,
     update_employee,
+)
+from app.services.saudi_labor_law import (
+    calculate_end_of_service,
+    calculate_gosi,
+    calculate_saudization,
+    check_iqama_expiry,
+    annual_leave_days,
+    probation_info,
+    sick_leave_schedule,
+    NOTICE_PERIOD_INFO_AR,
+    SEPARATION_TYPES,
 )
 from app.services.interview_questions import (
     QuestionGenerationError,
@@ -434,7 +448,11 @@ def export_employees_excel(_admin: None = Depends(require_admin)) -> Response:
     wb = Workbook()
     ws = wb.active
     ws.title = "الموظفون"
-    headers = ["الاسم", "الرقم الوظيفي", "الجنسية", "المسمى الوظيفي", "الجوال", "الراتب", "رقم الإقامة", "تاريخ انتهاء الإقامة"]
+    headers = [
+        "الاسم", "الرقم الوظيفي", "الجنسية", "المسمى الوظيفي", "الجوال", "الراتب",
+        "رقم الإقامة", "تاريخ انتهاء الإقامة", "رقم الهوية", "تاريخ التعيين",
+        "الراتب الأساسي", "بدل السكن", "بدلات أخرى", "نوع العقد", "تاريخ نهاية العقد",
+    ]
     ws.append(headers)
     for e in items:
         ws.append([
@@ -446,6 +464,13 @@ def export_employees_excel(_admin: None = Depends(require_admin)) -> Response:
             e.get("salary"),
             e.get("iqama_number", ""),
             e.get("iqama_expiry_date", ""),
+            e.get("national_id", ""),
+            e.get("hire_date", ""),
+            e.get("basic_salary"),
+            e.get("housing_allowance"),
+            e.get("other_allowances"),
+            e.get("contract_type", ""),
+            e.get("contract_end_date", ""),
         ])
     buffer = BytesIO()
     wb.save(buffer)
@@ -485,6 +510,144 @@ async def import_employees(
                ip_address=request.client.host if request and request.client else None)
 
     return {"imported": len(employees), "errors": errors}
+
+
+# ============================================================================
+# الامتثال لنظام العمل السعودي — GOSI، مكافأة نهاية الخدمة، نطاقات، الإقامات
+# ============================================================================
+
+@router.get("/compliance/employees/{employee_id}/gosi")
+def get_employee_gosi(
+    employee_id: str, _admin: None = Depends(require_admin),
+) -> dict:
+    """يحسب اشتراك التأمينات الاجتماعية (GOSI) الشهري التقديري لموظف محدد."""
+    emp = get_employee(employee_id)
+    if emp is None:
+        raise HTTPException(status_code=404, detail="الموظف غير موجود")
+
+    basic = emp.get("basic_salary") or emp.get("salary") or 0.0
+    housing = emp.get("housing_allowance") or 0.0
+    result = calculate_gosi(
+        basic_salary=basic,
+        housing_allowance=housing,
+        nationality=emp.get("nationality"),
+        registered_before_july_2024=emp.get("gosi_registered_before_2024")
+        if emp.get("gosi_registered_before_2024") is not None else True,
+    )
+    return result.to_dict()
+
+
+@router.post("/compliance/employees/{employee_id}/gosi")
+def post_employee_gosi(
+    employee_id: str, req: GosiCalcRequest, _admin: None = Depends(require_admin),
+) -> dict:
+    """نفس حساب GOSI لكن مع إمكانية تجاوز الراتب/نوع التسجيل لغرض المحاكاة."""
+    emp = get_employee(employee_id)
+    if emp is None:
+        raise HTTPException(status_code=404, detail="الموظف غير موجود")
+
+    basic = req.basic_salary_override if req.basic_salary_override is not None else (
+        emp.get("basic_salary") or emp.get("salary") or 0.0
+    )
+    housing = req.housing_allowance_override if req.housing_allowance_override is not None else (
+        emp.get("housing_allowance") or 0.0
+    )
+    registered_before = (
+        req.registered_before_july_2024 if req.registered_before_july_2024 is not None
+        else (emp.get("gosi_registered_before_2024") if emp.get("gosi_registered_before_2024") is not None else True)
+    )
+    result = calculate_gosi(
+        basic_salary=basic, housing_allowance=housing,
+        nationality=emp.get("nationality"), registered_before_july_2024=registered_before,
+    )
+    return result.to_dict()
+
+
+@router.post("/compliance/employees/{employee_id}/end-of-service")
+def post_end_of_service(
+    employee_id: str, req: EndOfServiceRequest, _admin: None = Depends(require_admin), request: Request = None,
+) -> dict:
+    """يحسب مكافأة نهاية الخدمة التقديرية لموظف عند إنهاء خدمته."""
+    emp = get_employee(employee_id)
+    if emp is None:
+        raise HTTPException(status_code=404, detail="الموظف غير موجود")
+    if not emp.get("hire_date"):
+        raise HTTPException(status_code=400, detail="لا يوجد تاريخ تعيين مسجّل لهذا الموظف")
+
+    basic = req.basic_salary_override if req.basic_salary_override is not None else (
+        emp.get("basic_salary") or emp.get("salary") or 0.0
+    )
+    housing = req.housing_allowance_override if req.housing_allowance_override is not None else (
+        emp.get("housing_allowance") or 0.0
+    )
+    other = req.other_allowances_override if req.other_allowances_override is not None else (
+        emp.get("other_allowances") or 0.0
+    )
+
+    try:
+        result = calculate_end_of_service(
+            hire_date=emp["hire_date"], end_date=req.end_date,
+            basic_salary=basic, housing_allowance=housing, other_fixed_allowances=other,
+            separation_type=req.separation_type,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    log_action("calculate_eos", "employee", employee_id,
+               {"name": emp.get("full_name"), "separation_type": req.separation_type},
+               ip_address=request.client.host if request and request.client else None)
+    return result.to_dict()
+
+
+@router.get("/compliance/employees/{employee_id}/leave")
+def get_employee_leave_info(
+    employee_id: str, _admin: None = Depends(require_admin),
+) -> dict:
+    """معلومات استحقاق الإجازة السنوية وفترة التجربة لموظف محدد."""
+    emp = get_employee(employee_id)
+    if emp is None:
+        raise HTTPException(status_code=404, detail="الموظف غير موجود")
+
+    years = None
+    if emp.get("hire_date"):
+        from datetime import date, datetime as dt
+        hire = dt.strptime(emp["hire_date"], "%Y-%m-%d").date()
+        years = (date.today() - hire).days / 365.0
+
+    return {
+        "years_of_service": round(years, 2) if years is not None else None,
+        "annual_leave_days": annual_leave_days(years) if years is not None else None,
+        "probation": probation_info(),
+        "notice_period": NOTICE_PERIOD_INFO_AR,
+        "sick_leave": sick_leave_schedule(),
+    }
+
+
+@router.get("/compliance/saudization")
+def get_saudization_report(_admin: None = Depends(require_admin)) -> dict:
+    """نسبة السعودة الإجمالية (تقديرية) عبر كل الموظفين المسجّلين."""
+    employees = list_all_employees_raw()
+    result = calculate_saudization(employees)
+    return result.to_dict()
+
+
+@router.get("/compliance/iqama-alerts")
+def get_iqama_alerts(_admin: None = Depends(require_admin)) -> dict:
+    """قائمة الموظفين ذوي الإقامات المنتهية أو التي تقترب من الانتهاء."""
+    employees = list_all_employees_raw()
+    alerts = check_iqama_expiry(employees)
+    return {
+        "alerts": alerts,
+        "urgent_count": sum(1 for a in alerts if a["level"] == "urgent"),
+        "expired_count": sum(1 for a in alerts if a["level"] == "expired"),
+        "warning_count": sum(1 for a in alerts if a["level"] == "warning"),
+    }
+
+
+@router.get("/compliance/separation-types")
+def get_separation_types(_admin: None = Depends(require_admin)) -> dict:
+    """قائمة أنواع إنهاء الخدمة المدعومة لحساب مكافأة نهاية الخدمة."""
+    return {"types": [{"key": k, "label_ar": v} for k, v in SEPARATION_TYPES.items()]}
 
 
 @router.post("/analyze", response_model=CVAnalysisResult)
