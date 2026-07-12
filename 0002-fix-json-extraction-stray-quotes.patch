@@ -1,0 +1,254 @@
+From 1fbbce7d71306add103517652a9aeb266a3777c8 Mon Sep 17 00:00:00 2001
+From: Claude <claude@anthropic.com>
+Date: Sun, 12 Jul 2026 18:49:40 +0000
+Subject: [PATCH] =?UTF-8?q?=D8=A5=D8=B5=D9=84=D8=A7=D8=AD:=20=D8=B9=D8=B7?=
+ =?UTF-8?q?=D9=84=20=D8=A7=D8=B3=D8=AA=D8=AE=D8=B1=D8=A7=D8=AC=20JSON=20?=
+ =?UTF-8?q?=D8=B9=D9=86=D8=AF=20=D9=88=D8=AC=D9=88=D8=AF=20=D8=A7=D9=82?=
+ =?UTF-8?q?=D8=AA=D8=A8=D8=A7=D8=B3=D8=A7=D8=AA=20=D8=AF=D8=A7=D8=AE=D9=84?=
+ =?UTF-8?q?=20=D9=86=D8=B5=20=D8=B1=D8=AF=20=D8=A7=D9=84=D9=86=D9=85=D9=88?=
+ =?UTF-8?q?=D8=B0=D8=AC?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+المشكلة الظاهرة: عند طلب "قم بعرض احسن 5 متقدمين للوظائف"، ظهر في الشات
+نص الـ JSON الخام كاملاً بدل الرسالة، لأن النموذج وضع علامتي اقتباس عاديتين
+حول كلمة داخل الجملة (مثال: ‏"... عرض "أفضل" المتقدمين ...")، فكسر هذا
+الاقتباس الداخلي غير المُهرَّب (unescaped) تحليل JSON تمامًا، وسقطت كل
+محاولات extract_json الحالية (المحاولة المباشرة، البحث عن الأقواس المتوازنة،
+إصلاح السلاسل الناقصة)، فرجع الكود الاحتياطي بعرض النص الخام كما هو.
+
+الإصلاح: أضفت app/services/json_utils.py::_escape_stray_inner_quotes() —
+تكتشف علامات الاقتباس التي لا يتبعها مباشرة أحد فواصل JSON الهيكلية
+(, } ] :) وتُهرّبها تلقائيًا بافتراض أنها اقتباس داخل المحتوى وليست نهاية
+السلسلة الفعلية. تم دمجها كخطوة إصلاح إضافية في عدة مراحل من extract_json
+(على النص كاملاً، وعلى الكائن المستخرج، ومع دمجها مع إصلاح الأقواس الناقصة).
+
+هذا الإصلاح في json_utils.py المشتركة يفيد كل الأماكن التي تستخدمها:
+الوكيل الذكي، تحليل السير الذاتية، توليد أسئلة المقابلة، التوصية النهائية،
+والاختبار الكتابي — وليس فقط الشات.
+
+تمت إضافة 9 اختبارات جديدة (tests/test_json_utils.py) تغطي الحالة المُبلَّغ
+عنها بالضبط + حالات مشابهة (اقتباسات متعددة، نص قبل JSON، JSON مقطوع)،
+وتم التحقق من الإصلاح فعليًا عبر محاكاة رد النموذج المعطوب الحقيقي من
+الصورة المرفقة والتأكد من عدم تسرب أي JSON خام للمستخدم.
+---
+ backend/app/services/json_utils.py | 90 ++++++++++++++++++++++++++----
+ backend/tests/test_json_utils.py   | 84 ++++++++++++++++++++++++++++
+ 2 files changed, 162 insertions(+), 12 deletions(-)
+ create mode 100644 backend/tests/test_json_utils.py
+
+diff --git a/backend/app/services/json_utils.py b/backend/app/services/json_utils.py
+index 21ad800..5721791 100644
+--- a/backend/app/services/json_utils.py
++++ b/backend/app/services/json_utils.py
+@@ -91,6 +91,56 @@ def _open_brackets(s: str) -> list[str]:
+     return order
+ 
+ 
++def _escape_stray_inner_quotes(s: str) -> str:
++    """يهرّب علامات اقتباس داخل قيمة نصية عندما تكون النموذج وضعها كاقتباس
++    داخل الجملة (مثل: "لا أقدر أعرض "أفضل" المتقدمين") بدل أن تكون فعليًا
++    نهاية السلسلة. هذا خطأ شائع جدًا من النماذج عند اقتباس كلمة داخل جملة عربية.
++
++    الفكرة: أي علامة اقتباس تظهر أثناء كوننا داخل سلسلة نصية تُعتبر "نهاية
++    حقيقية" فقط إذا كان الحرف التالي (بعد تجاهل المسافات) أحد فواصل JSON
++    الهيكلية (, } ] :) أو نهاية النص. غير ذلك، فهي اقتباس داخل المحتوى ويجب
++    تهريبها بإضافة شرطة مائلة قبلها.
++    """
++    result: list[str] = []
++    in_str = False
++    escape = False
++    i = 0
++    n = len(s)
++    while i < n:
++        c = s[i]
++        if escape:
++            result.append(c)
++            escape = False
++            i += 1
++            continue
++        if c == "\\":
++            result.append(c)
++            escape = True
++            i += 1
++            continue
++        if c == '"':
++            if not in_str:
++                in_str = True
++                result.append(c)
++                i += 1
++                continue
++            j = i + 1
++            while j < n and s[j] in " \t\r\n":
++                j += 1
++            if j >= n or s[j] in ",}]:":
++                in_str = False
++                result.append(c)
++                i += 1
++                continue
++            # اقتباس داخل المحتوى — هرّبه واستمر كأننا لا نزال داخل السلسلة
++            result.append('\\"')
++            i += 1
++            continue
++        result.append(c)
++        i += 1
++    return "".join(result)
++
++
+ def extract_json(text: str) -> dict:
+     cleaned = text.strip()
+     if cleaned.startswith("```"):
+@@ -105,6 +155,12 @@ def extract_json(text: str) -> dict:
+     except json.JSONDecodeError:
+         pass
+ 
++    # 1ب. محاولة بعد تهريب علامات الاقتباس الداخلية الشائعة من النماذج
++    try:
++        return json.loads(_escape_stray_inner_quotes(cleaned))
++    except json.JSONDecodeError:
++        pass
++
+     # 2. إيجاد أول كائن JSON متوازن وإصلاحه
+     outer = _find_outer_json(cleaned)
+     if outer:
+@@ -114,24 +170,34 @@ def extract_json(text: str) -> dict:
+         except json.JSONDecodeError:
+             pass
+ 
+-        # 2ب. إصلاح المشاكل الشائعة (أقواس/سلاسل ناقصة)
++        # 2ب. تهريب علامات الاقتباس الداخلية على النص المستخرج تحديدًا
++        escaped_outer = _escape_stray_inner_quotes(outer)
++        try:
++            return json.loads(escaped_outer)
++        except json.JSONDecodeError:
++            pass
++
++        # 2ج. إصلاح المشاكل الشائعة (أقواس/سلاسل ناقصة)
+         fixed = _fix_partial_json(outer)
+         try:
+             return json.loads(fixed)
+         except json.JSONDecodeError:
+             pass
+ 
+-        # 2ج. progressive truncation — نجرب باختصار النص من النهاية
+-        for cut in range(len(outer) - 1, len(outer) // 2, -1):
+-            try:
+-                return json.loads(outer[:cut])
+-            except json.JSONDecodeError:
+-                continue
+-        for cut in range(len(fixed) - 1, len(fixed) // 2, -1):
+-            try:
+-                return json.loads(fixed[:cut])
+-            except json.JSONDecodeError:
+-                continue
++        # 2د. تهريب الاقتباسات الداخلية + إصلاح الأقواس معًا
++        fixed_escaped = _fix_partial_json(escaped_outer)
++        try:
++            return json.loads(fixed_escaped)
++        except json.JSONDecodeError:
++            pass
++
++        # 2هـ. progressive truncation — نجرب باختصار النص من النهاية
++        for candidate in (outer, escaped_outer, fixed, fixed_escaped):
++            for cut in range(len(candidate) - 1, len(candidate) // 2, -1):
++                try:
++                    return json.loads(candidate[:cut])
++                except json.JSONDecodeError:
++                    continue
+ 
+     # 3. raw_decode — يتجاهل المحتوى الزائد بعد JSON (مثل نص إضافي بعد JSON صالح)
+     decoder = json.JSONDecoder()
+diff --git a/backend/tests/test_json_utils.py b/backend/tests/test_json_utils.py
+new file mode 100644
+index 0000000..5260416
+--- /dev/null
++++ b/backend/tests/test_json_utils.py
+@@ -0,0 +1,84 @@
++"""اختبارات لاستخراج JSON من ردود النموذج، بما فيها حالة الاقتباسات الداخلية الشائعة."""
++import sys
++from pathlib import Path
++
++sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
++
++from app.services.json_utils import extract_json, JsonExtractionError
++
++
++def test_valid_json_parses_directly():
++    result = extract_json('{"type": "text_response", "message_ar": "مرحبًا"}')
++    assert result == {"type": "text_response", "message_ar": "مرحبًا"}
++
++
++def test_json_wrapped_in_markdown_fences():
++    raw = '```json\n{"type": "text_response", "message_ar": "أهلًا"}\n```'
++    result = extract_json(raw)
++    assert result["message_ar"] == "أهلًا"
++
++
++def test_stray_quotes_around_single_word():
++    """الحالة المُبلَّغ عنها: النموذج يضع اقتباسات حول كلمة داخل الجملة."""
++    raw = (
++        '{"type": "text_response", "message_ar": "عذرًا، لا أستطيع تحديد أو عرض '
++        '"أفضل" المتقدمين للوظائف."}'
++    )
++    result = extract_json(raw)
++    assert result["type"] == "text_response"
++    assert '"أفضل"' in result["message_ar"]
++    assert "المتقدمين للوظائف" in result["message_ar"]
++
++
++def test_stray_quotes_with_prose_before_json():
++    raw = (
++        'إليك الرد:\n'
++        '{"type": "text_response", "message_ar": "هذا يسمى "الأفضل" فعلًا"}'
++    )
++    result = extract_json(raw)
++    assert result["type"] == "text_response"
++
++
++def test_multiple_stray_quoted_words():
++    raw = (
++        '{"type": "text_response", "message_ar": '
++        '"كلمة "أولى" ثم كلمة "ثانية" في نفس الجملة"}'
++    )
++    result = extract_json(raw)
++    assert "أولى" in result["message_ar"]
++    assert "ثانية" in result["message_ar"]
++
++
++def test_tool_call_with_nested_action_object():
++    raw = '''{
++        "type": "tool_call",
++        "action": {
++            "tool": "add_employee",
++            "parameters": {"full_name": "خالد \\"الملقب بأبو سالم\\""},
++            "explanation_ar": "إضافة موظف",
++            "needs_confirmation": true
++        }
++    }'''
++    result = extract_json(raw)
++    assert result["type"] == "tool_call"
++    assert result["action"]["tool"] == "add_employee"
++
++
++def test_truncated_json_missing_closing_brace():
++    raw = '{"type": "text_response", "message_ar": "رد غير مكتمل'
++    result = extract_json(raw)
++    assert result["type"] == "text_response"
++
++
++def test_completely_invalid_text_raises():
++    try:
++        extract_json("هذا نص عادي بدون أي JSON إطلاقًا")
++        assert False, "should have raised JsonExtractionError"
++    except JsonExtractionError:
++        pass
++
++
++def test_trailing_comma_is_handled():
++    raw = '{"type": "text_response", "message_ar": "تجربة",}'
++    result = extract_json(raw)
++    assert result["message_ar"] == "تجربة"
+-- 
+2.43.0
+

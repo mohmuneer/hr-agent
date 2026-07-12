@@ -91,6 +91,56 @@ def _open_brackets(s: str) -> list[str]:
     return order
 
 
+def _escape_stray_inner_quotes(s: str) -> str:
+    """يهرّب علامات اقتباس داخل قيمة نصية عندما تكون النموذج وضعها كاقتباس
+    داخل الجملة (مثل: "لا أقدر أعرض "أفضل" المتقدمين") بدل أن تكون فعليًا
+    نهاية السلسلة. هذا خطأ شائع جدًا من النماذج عند اقتباس كلمة داخل جملة عربية.
+
+    الفكرة: أي علامة اقتباس تظهر أثناء كوننا داخل سلسلة نصية تُعتبر "نهاية
+    حقيقية" فقط إذا كان الحرف التالي (بعد تجاهل المسافات) أحد فواصل JSON
+    الهيكلية (, } ] :) أو نهاية النص. غير ذلك، فهي اقتباس داخل المحتوى ويجب
+    تهريبها بإضافة شرطة مائلة قبلها.
+    """
+    result: list[str] = []
+    in_str = False
+    escape = False
+    i = 0
+    n = len(s)
+    while i < n:
+        c = s[i]
+        if escape:
+            result.append(c)
+            escape = False
+            i += 1
+            continue
+        if c == "\\":
+            result.append(c)
+            escape = True
+            i += 1
+            continue
+        if c == '"':
+            if not in_str:
+                in_str = True
+                result.append(c)
+                i += 1
+                continue
+            j = i + 1
+            while j < n and s[j] in " \t\r\n":
+                j += 1
+            if j >= n or s[j] in ",}]:":
+                in_str = False
+                result.append(c)
+                i += 1
+                continue
+            # اقتباس داخل المحتوى — هرّبه واستمر كأننا لا نزال داخل السلسلة
+            result.append('\\"')
+            i += 1
+            continue
+        result.append(c)
+        i += 1
+    return "".join(result)
+
+
 def extract_json(text: str) -> dict:
     cleaned = text.strip()
     if cleaned.startswith("```"):
@@ -105,6 +155,12 @@ def extract_json(text: str) -> dict:
     except json.JSONDecodeError:
         pass
 
+    # 1ب. محاولة بعد تهريب علامات الاقتباس الداخلية الشائعة من النماذج
+    try:
+        return json.loads(_escape_stray_inner_quotes(cleaned))
+    except json.JSONDecodeError:
+        pass
+
     # 2. إيجاد أول كائن JSON متوازن وإصلاحه
     outer = _find_outer_json(cleaned)
     if outer:
@@ -114,24 +170,34 @@ def extract_json(text: str) -> dict:
         except json.JSONDecodeError:
             pass
 
-        # 2ب. إصلاح المشاكل الشائعة (أقواس/سلاسل ناقصة)
+        # 2ب. تهريب علامات الاقتباس الداخلية على النص المستخرج تحديدًا
+        escaped_outer = _escape_stray_inner_quotes(outer)
+        try:
+            return json.loads(escaped_outer)
+        except json.JSONDecodeError:
+            pass
+
+        # 2ج. إصلاح المشاكل الشائعة (أقواس/سلاسل ناقصة)
         fixed = _fix_partial_json(outer)
         try:
             return json.loads(fixed)
         except json.JSONDecodeError:
             pass
 
-        # 2ج. progressive truncation — نجرب باختصار النص من النهاية
-        for cut in range(len(outer) - 1, len(outer) // 2, -1):
-            try:
-                return json.loads(outer[:cut])
-            except json.JSONDecodeError:
-                continue
-        for cut in range(len(fixed) - 1, len(fixed) // 2, -1):
-            try:
-                return json.loads(fixed[:cut])
-            except json.JSONDecodeError:
-                continue
+        # 2د. تهريب الاقتباسات الداخلية + إصلاح الأقواس معًا
+        fixed_escaped = _fix_partial_json(escaped_outer)
+        try:
+            return json.loads(fixed_escaped)
+        except json.JSONDecodeError:
+            pass
+
+        # 2هـ. progressive truncation — نجرب باختصار النص من النهاية
+        for candidate in (outer, escaped_outer, fixed, fixed_escaped):
+            for cut in range(len(candidate) - 1, len(candidate) // 2, -1):
+                try:
+                    return json.loads(candidate[:cut])
+                except json.JSONDecodeError:
+                    continue
 
     # 3. raw_decode — يتجاهل المحتوى الزائد بعد JSON (مثل نص إضافي بعد JSON صالح)
     decoder = json.JSONDecoder()
