@@ -1,0 +1,124 @@
+From d37bd76f0ff22179d9ad77d8640ba9bf0ed86803 Mon Sep 17 00:00:00 2001
+From: Claude <claude@anthropic.com>
+Date: Sun, 12 Jul 2026 18:34:44 +0000
+Subject: [PATCH] =?UTF-8?q?=D8=A5=D8=B5=D9=84=D8=A7=D8=AD:=20=D8=AA=D8=B7?=
+ =?UTF-8?q?=D8=A7=D8=A8=D9=82=20=D8=A3=D8=B3=D9=85=D8=A7=D8=A1=20=D8=A7?=
+ =?UTF-8?q?=D9=84=D8=AD=D9=82=D9=88=D9=84=20=D8=A8=D9=8A=D9=86=20=D9=88?=
+ =?UTF-8?q?=D8=A7=D8=AC=D9=87=D8=A9=20=D8=A7=D9=84=D8=A7=D9=85=D8=AA=D8=AB?=
+ =?UTF-8?q?=D8=A7=D9=84=20=D9=88=D8=A7=D9=84=D9=80=20API=20=D8=A7=D9=84?=
+ =?UTF-8?q?=D9=81=D8=B9=D9=84=D9=8A?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+الواجهة الأمامية لصفحة "الامتثال" كانت تفترض أسماء حقول غير موجودة فعليًا
+في رد الـ API، ما سبب ظهور "undefined" و"لا يوجد موظفون" رغم وجود بيانات حقيقية:
+
+- نسبة السعودة: sData.total/.saudi_count/.percentage غير موجودة
+  → الصحيح: total_employees / saudi_employees / saudization_percent
+- تنبيهات الإقامة: a.status غير موجود → الصحيح: a.level (+ عرض level_label_ar)
+- أنواع إنهاء الخدمة: الـ API يُرجع مصفوفة [{key,label_ar}] وليس كائن (dict)
+  → تم إصلاح Object.entries() إلى map() مباشر على المصفوفة
+- حاسبة GOSI: basic_salary/housing_allowance/employee_rate/employer_rate/
+  total_monthly غير موجودة → الصحيح: contributory_wage/
+  employee_rate_percent/employer_rate_percent/total_contribution
+- حاسبة مكافأة نهاية الخدمة: basic_salary/housing_allowance/daily_wage/
+  gratuity_total/note غير موجودة → الصحيح: base_wage/full_gratuity/
+  payable_gratuity/reduction_label_ar/notes_ar
+
+تم التحقق من كل تعديل عبر تشغيل الـ backend فعليًا ومطابقة كل استجابة API
+حقيقية مع منطق الواجهة المُصحح.
+---
+ frontend/index.html | 37 +++++++++++++++++++------------------
+ 1 file changed, 19 insertions(+), 18 deletions(-)
+
+diff --git a/frontend/index.html b/frontend/index.html
+index 24da5f6..abc5c8c 100644
+--- a/frontend/index.html
++++ b/frontend/index.html
+@@ -2194,8 +2194,8 @@ async function loadComplianceData() {
+     try {
+       const sRes = await apiFetch(`${API_BASE}/compliance/saudization`);
+       const sData = await sRes.json();
+-      document.getElementById("compliance-saudization").textContent = sData.total > 0
+-        ? `${sData.saudi_count}/${sData.total} (${sData.percentage}%)`
++      document.getElementById("compliance-saudization").textContent = sData.total_employees > 0
++        ? `${sData.saudi_employees}/${sData.total_employees} (${sData.saudization_percent}%)`
+         : "لا يوجد موظفون";
+     } catch { document.getElementById("compliance-saudization").textContent = "—"; }
+ 
+@@ -2204,8 +2204,8 @@ async function loadComplianceData() {
+       const iRes = await apiFetch(`${API_BASE}/compliance/iqama-alerts`);
+       const iData = await iRes.json();
+       const alerts = iData.alerts || [];
+-      const urgent = alerts.filter(a => a.status === "expired" || a.status === "urgent").length;
+-      const warning = alerts.filter(a => a.status === "warning").length;
++      const urgent = alerts.filter(a => a.level === "expired" || a.level === "urgent").length;
++      const warning = alerts.filter(a => a.level === "warning").length;
+       document.getElementById("compliance-iqama-alerts").innerHTML =
+         (urgent > 0 ? `<span style="color:var(--danger);">${urgent} عاجل/منتهية</span>` : "") +
+         (warning > 0 ? ` <span style="color:var(--warn);">${warning} تحذير</span>` : "") +
+@@ -2221,8 +2221,8 @@ async function loadComplianceData() {
+           <td>${a.full_name || a.employee_id}</td>
+           <td>${a.iqama_number || "-"}</td>
+           <td>${a.iqama_expiry_date}</td>
+-          <td><span class="status-badge ${a.status === 'expired' ? 'rejected' : a.status === 'urgent' ? 'pending' : 'approved'}">${
+-            a.status === 'expired' ? 'منتهية' : a.status === 'urgent' ? 'عاجل' : 'تنبيه'
++          <td><span class="status-badge ${a.level === 'expired' ? 'rejected' : a.level === 'urgent' ? 'pending' : 'approved'}">${
++            a.level_label_ar || (a.level === 'expired' ? 'منتهية' : a.level === 'urgent' ? 'عاجل' : 'تنبيه')
+           }</span></td>
+         </tr>`).join("")}</tbody></table>`;
+       }
+@@ -2233,8 +2233,8 @@ async function loadComplianceData() {
+       const stRes = await apiFetch(`${API_BASE}/compliance/separation-types`);
+       const stData = await stRes.json();
+       const sel = document.getElementById("eos-separation-type");
+-      sel.innerHTML = Object.entries(stData.types || {}).map(([k, v]) =>
+-        `<option value="${k}">${v}</option>`
++      sel.innerHTML = (stData.types || []).map(t =>
++        `<option value="${t.key}">${t.label_ar}</option>`
+       ).join("");
+     } catch {}
+   } catch {}
+@@ -2250,14 +2250,14 @@ document.getElementById("gosi-calc-btn").addEventListener("click", async () => {
+     const data = await res.json();
+     resultEl.className = "hint";
+     resultEl.innerHTML = `
+-      <strong>الراتب الأساسي:</strong> ${data.basic_salary} ر.س<br>
+-      <strong>بدل السكن:</strong> ${data.housing_allowance} ر.س<br>
+-      <strong>نسبة التأمين (موظف):</strong> ${data.employee_rate}%<br>
+-      <strong>نسبة التأمين (صاحب عمل):</strong> ${data.employer_rate}%<br>
++      <strong>الأجر الخاضع للاشتراك:</strong> ${data.contributory_wage} ر.س<br>
++      <strong>نسبة التأمين (موظف):</strong> ${data.employee_rate_percent}%<br>
++      <strong>نسبة التأمين (صاحب عمل):</strong> ${data.employer_rate_percent}%<br>
+       <hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">
+       <strong>مساهمة الموظف:</strong> <span style="color:var(--primary);font-weight:700;">${data.employee_contribution} ر.س</span><br>
+       <strong>مساهمة صاحب العمل:</strong> <span style="color:var(--primary);font-weight:700;">${data.employer_contribution} ر.س</span><br>
+-      <strong>الإجمالي الشهري:</strong> <span style="font-weight:700;">${data.total_monthly} ر.س</span>
++      <strong>الإجمالي الشهري:</strong> <span style="font-weight:700;">${data.total_contribution} ر.س</span>
++      ${(data.notes_ar || []).length ? `<div class="hint" style="margin-top:8px;">${data.notes_ar.join("<br>")}</div>` : ""}
+     `;
+   } catch (e) { resultEl.textContent = "خطأ: " + e.message; resultEl.className = "hint error"; }
+ });
+@@ -2280,12 +2280,13 @@ document.getElementById("eos-calc-btn").addEventListener("click", async () => {
+     resultEl.className = "hint";
+     resultEl.innerHTML = `
+       <strong>سنوات الخدمة:</strong> ${data.years_of_service}<br>
+-      <strong>الراتب الأساسي:</strong> ${data.basic_salary} ر.س<br>
+-      <strong>بدل السكن:</strong> ${data.housing_allowance} ر.س<br>
+-      <strong>الراتب اليومي:</strong> ${data.daily_wage} ر.س<br>
++      <strong>الأجر الشهري المعتمد للحساب:</strong> ${data.base_wage} ر.س<br>
++      <strong>نوع الإنهاء:</strong> ${data.separation_type_label_ar || ""}<br>
+       <hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">
+-      <strong>المكافأة الإجمالية:</strong> <span style="color:var(--primary);font-weight:700;font-size:1.1rem;">${data.gratuity_total} ر.س</span><br>
+-      <span class="hint">${data.note || ""}</span>
++      <strong>المكافأة الكاملة (قبل أي تخفيض):</strong> ${data.full_gratuity} ر.س<br>
++      <strong>المكافأة المستحقة فعليًا:</strong> <span style="color:var(--primary);font-weight:700;font-size:1.1rem;">${data.payable_gratuity} ر.س</span>
++      <div class="hint" style="margin-top:6px;">${data.reduction_label_ar || ""}</div>
++      ${(data.notes_ar || []).length ? `<div class="hint" style="margin-top:8px;">${data.notes_ar.join("<br>")}</div>` : ""}
+     `;
+   } catch (e) { resultEl.textContent = "خطأ: " + e.message; resultEl.className = "hint error"; }
+ });
+-- 
+2.43.0
+
