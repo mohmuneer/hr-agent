@@ -1208,9 +1208,9 @@ def get_audit_logs(
 def agent_chat(req: AgentChatRequest, _admin: None = Depends(require_admin)) -> dict:
     """إرسال رسالة إلى وكيل الذكاء الاصطناعي والحصول على رد."""
     conv_id = req.conversation_id if req.conversation_id and req.conversation_id != "null" else None
-    result = process_message(req.message, conv_id)
+    result = process_message(req.message, conv_id, current_page=req.current_page, voice_mode=req.voice_mode)
     log_action("agent_chat", "agent",
-               details={"message_preview": req.message[:80]},
+               details={"message_preview": req.message[:80], "page": req.current_page, "voice": req.voice_mode},
                username="admin")
     return result.model_dump()
 

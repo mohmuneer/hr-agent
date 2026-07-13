@@ -349,48 +349,343 @@
   .modal-actions button.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
 
   /* ===== AI COMMAND CENTER ===== */
-  .agent-layout { display: flex; flex-direction: column; height: calc(100vh - var(--topbar-h) - var(--space-xl)*2); max-height: calc(100vh - var(--topbar-h) - var(--space-xl)*2); }
-  .agent-chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-sm); scroll-behavior: smooth; }
-  .agent-msg { display: flex; gap: var(--space-sm); max-width: 85%; animation: fadeIn 0.3s ease; }
+  .agent-layout {
+    display: flex; flex-direction: column;
+    height: calc(100vh - var(--topbar-h) - var(--space-xl)*2);
+    max-height: calc(100vh - var(--topbar-h) - var(--space-xl)*2);
+    background: linear-gradient(135deg, var(--bg) 0%, var(--surface) 100%);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .agent-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(10px);
+    flex-shrink: 0;
+  }
+  .agent-header-title {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .agent-header-title strong { font-size: 1rem; }
+  .agent-header-title span { font-size: 0.78rem; color: var(--text-muted); }
+  .agent-header-actions { display: flex; gap: 6px; align-items: center; }
+  .agent-header-actions button {
+    background: none; border: 1px solid var(--border); color: var(--text-muted);
+    padding: 6px 10px; border-radius: 8px; font-size: 0.78rem; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .agent-header-actions button:hover { border-color: var(--primary); color: var(--primary); }
+
+  .agent-status-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px var(--space-lg);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem; color: var(--text-muted);
+    background: rgba(0,0,0,0.02);
+    flex-shrink: 0;
+  }
+  .agent-status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--text-muted); flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .agent-status-dot.connected { background: var(--good); }
+  .agent-status-dot.recording { background: var(--danger); animation: pulse 1.2s infinite; }
+  .agent-status-dot.listening { background: var(--primary); animation: pulse 1.5s infinite; }
+  .agent-status-dot.thinking { background: var(--warn); animation: pulse 0.8s infinite; }
+  .agent-status-dot.speaking { background: #6366f1; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.3); } }
+
+  .agent-chat {
+    flex: 1; overflow-y: auto; display: flex; flex-direction: column;
+    gap: var(--space-md); padding: var(--space-lg);
+    scroll-behavior: smooth;
+  }
+  .agent-chat::-webkit-scrollbar { width: 5px; }
+  .agent-chat::-webkit-scrollbar-track { background: transparent; }
+  .agent-chat::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+  .agent-welcome {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; flex: 1; text-align: center;
+    padding: var(--space-xl); opacity: 0.7;
+  }
+  .agent-welcome-icon {
+    font-size: 3rem; margin-bottom: var(--space-md);
+    background: linear-gradient(135deg, var(--primary), #6366f1);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .agent-welcome h3 { margin: 0 0 var(--space-sm); font-size: 1.2rem; color: var(--text); }
+  .agent-welcome p { margin: 0; font-size: 0.88rem; color: var(--text-muted); max-width: 380px; line-height: 1.7; }
+
+  .agent-msg {
+    display: flex; gap: var(--space-sm); max-width: 88%;
+    animation: agentMsgIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
   .agent-msg.user { align-self: flex-end; flex-direction: row-reverse; }
   .agent-msg.assistant { align-self: flex-start; }
-  .agent-msg .avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+  .agent-msg .avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.9rem; flex-shrink: 0; margin-top: 2px;
+  }
   .agent-msg.user .avatar { background: var(--primary); color: #fff; }
-  .agent-msg.assistant .avatar { background: var(--bg); border: 1px solid var(--border); }
-  .agent-msg .bubble { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; font-size: 0.92rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
-  .agent-msg.user .bubble { background: var(--primary); color: #fff; border-color: var(--primary); }
-  .agent-msg .bubble .msg-time { font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; display: block; }
-  .agent-msg.user .bubble .msg-time { color: rgba(255,255,255,0.7); }
-  .agent-input-area { display: flex; gap: var(--space-sm); padding: var(--space-sm) 0; border-top: 1px solid var(--border); margin-top: var(--space-sm); }
-  .agent-input-area textarea { flex: 1; min-height: 44px; max-height: 120px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family: inherit; font-size: 0.92rem; resize: none; }
-  .agent-input-area textarea:focus { outline: none; border-color: var(--primary); }
-  .agent-input-area button { padding: 10px 20px; border-radius: 10px; align-self: flex-end; }
-  .agent-input-area button:disabled { opacity: 0.5; }
+  .agent-msg.assistant .avatar {
+    background: linear-gradient(135deg, var(--primary), #6366f1);
+    color: #fff;
+  }
+  .agent-msg .bubble {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 12px 16px; font-size: 0.9rem;
+    line-height: 1.7; white-space: pre-wrap; word-break: break-word;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .agent-msg.user .bubble {
+    background: var(--primary); color: #fff;
+    border-color: var(--primary);
+    border-radius: 16px 16px 4px 16px;
+  }
+  .agent-msg.assistant .bubble {
+    border-radius: 16px 16px 16px 4px;
+  }
+  .agent-msg .bubble .msg-time {
+    font-size: 0.68rem; color: var(--text-muted);
+    margin-top: 4px; display: block; opacity: 0.6;
+  }
+  .agent-msg.user .bubble .msg-time { color: rgba(255,255,255,0.6); }
+  @keyframes agentMsgIn {
+    from { opacity: 0; transform: translateY(12px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
 
-  .agent-confirm { background: var(--surface); border: 1px solid var(--primary); border-radius: 12px; padding: var(--space-md); margin: 6px 0; }
-  .agent-confirm .confirm-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 6px; color: var(--primary); }
-  .agent-confirm .confirm-desc { font-size: 0.88rem; color: var(--text-muted); margin-bottom: var(--space-sm); }
-  .agent-confirm .confirm-params { font-size: 0.85rem; background: var(--bg); border-radius: 8px; padding: var(--space-sm); margin-bottom: var(--space-sm); }
-  .agent-confirm .confirm-params .param-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid var(--border); gap: var(--space-sm); }
+  /* Voice Visualization */
+  .voice-viz-container {
+    display: none; align-items: center; justify-content: center;
+    padding: var(--space-md); gap: 3px; height: 60px;
+  }
+  .voice-viz-container.active { display: flex; }
+  .voice-viz-bar {
+    width: 3px; border-radius: 3px;
+    background: linear-gradient(to top, var(--primary), #6366f1);
+    transition: height 0.05s ease;
+    min-height: 4px;
+  }
+  .voice-viz-container.speaking .voice-viz-bar {
+    background: linear-gradient(to top, #6366f1, #a855f7);
+  }
+
+  /* Microphone Button */
+  .mic-btn-area {
+    display: flex; align-items: center; justify-content: center;
+    padding: var(--space-sm) 0; flex-shrink: 0;
+  }
+  .mic-btn {
+    width: 56px; height: 56px; border-radius: 50%;
+    border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; color: #fff;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    box-shadow: 0 4px 15px rgba(47, 111, 79, 0.3);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+  }
+  .mic-btn:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(47, 111, 79, 0.4); }
+  .mic-btn:active { transform: scale(0.95); }
+  .mic-btn.recording {
+    background: linear-gradient(135deg, var(--danger), #dc2626);
+    box-shadow: 0 4px 20px rgba(179, 67, 43, 0.4);
+    animation: micPulse 1.2s infinite;
+  }
+  .mic-btn.listening {
+    background: linear-gradient(135deg, var(--primary), #059669);
+    animation: micPulse 1.5s infinite;
+  }
+  @keyframes micPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(179, 67, 43, 0.4); }
+    50% { box-shadow: 0 0 0 12px rgba(179, 67, 43, 0); }
+  }
+  .mic-btn-ring {
+    position: absolute; inset: -4px; border-radius: 50%;
+    border: 2px solid var(--primary); opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .mic-btn.recording .mic-btn-ring,
+  .mic-btn.listening .mic-btn-ring { opacity: 1; animation: micRing 1.5s infinite; }
+  @keyframes micRing {
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(1.4); opacity: 0; }
+  }
+
+  /* Input Area */
+  .agent-input-area {
+    display: flex; gap: var(--space-sm); padding: var(--space-md) var(--space-lg);
+    border-top: 1px solid var(--border); background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(10px); align-items: flex-end; flex-shrink: 0;
+  }
+  .agent-input-area textarea {
+    flex: 1; min-height: 44px; max-height: 120px;
+    padding: 11px 14px; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--bg);
+    color: var(--text); font-family: inherit; font-size: 0.9rem;
+    resize: none; transition: border-color 0.2s;
+  }
+  .agent-input-area textarea:focus { outline: none; border-color: var(--primary); }
+  .agent-input-area textarea::placeholder { color: var(--text-muted); }
+  .agent-input-actions { display: flex; gap: 6px; align-items: flex-end; }
+  .agent-input-actions button {
+    width: 40px; height: 40px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg);
+    color: var(--text-muted); cursor: pointer; font-size: 1rem;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .agent-input-actions button:hover { border-color: var(--primary); color: var(--primary); }
+  .agent-input-actions .send-btn {
+    background: var(--primary); color: #fff; border-color: var(--primary);
+  }
+  .agent-input-actions .send-btn:hover { background: var(--primary-dark); }
+  .agent-input-actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Suggestions */
+  .agent-suggestions {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 0 var(--space-lg) var(--space-sm);
+    flex-shrink: 0;
+  }
+  .agent-suggestions .chip {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 999px; padding: 7px 16px; font-size: 0.8rem;
+    cursor: pointer; color: var(--text-muted); white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .agent-suggestions .chip:hover {
+    border-color: var(--primary); color: var(--primary);
+    background: rgba(47, 111, 79, 0.05);
+  }
+
+  /* Confirm / Result cards */
+  .agent-confirm {
+    background: var(--surface); border: 1px solid var(--primary);
+    border-radius: 14px; padding: var(--space-md); margin: 6px 0;
+    box-shadow: 0 2px 8px rgba(47, 111, 79, 0.08);
+  }
+  .agent-confirm .confirm-title { font-weight: 700; font-size: 0.92rem; margin-bottom: 6px; color: var(--primary); }
+  .agent-confirm .confirm-desc { font-size: 0.85rem; color: var(--text-muted); margin-bottom: var(--space-sm); }
+  .agent-confirm .confirm-params {
+    font-size: 0.82rem; background: var(--bg); border-radius: 10px;
+    padding: var(--space-sm); margin-bottom: var(--space-sm);
+  }
+  .agent-confirm .confirm-params .param-row {
+    display: flex; justify-content: space-between;
+    padding: 4px 0; border-bottom: 1px solid var(--border); gap: var(--space-sm);
+  }
   .agent-confirm .confirm-params .param-row:last-child { border-bottom: none; }
   .agent-confirm .confirm-params .param-key { color: var(--text-muted); }
   .agent-confirm .confirm-params .param-val { font-weight: 500; }
   .agent-confirm .confirm-actions { display: flex; gap: var(--space-sm); }
-  .agent-confirm .confirm-actions button { flex: 1; padding: 8px; font-size: 0.88rem; }
-  .agent-confirm .confirm-actions .exec-btn { background: var(--primary); }
-  .agent-confirm .confirm-actions .cancel-btn { background: var(--danger); }
+  .agent-confirm .confirm-actions button { flex: 1; padding: 9px; font-size: 0.85rem; border-radius: 10px; }
+  .agent-confirm .confirm-actions .exec-btn { background: var(--primary); color: #fff; }
+  .agent-confirm .confirm-actions .cancel-btn { background: var(--danger); color: #fff; }
 
-  .agent-result { background: var(--surface); border: 1px solid var(--good); border-radius: 12px; padding: var(--space-md); margin: 6px 0; }
-  .agent-result .result-title { font-weight: 700; font-size: 0.95rem; color: var(--good); margin-bottom: 6px; }
-  .agent-result .result-body { font-size: 0.88rem; line-height: 1.7; }
-  .agent-result .result-body .stat-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border); gap: var(--space-sm); }
+  .agent-result {
+    background: var(--surface); border: 1px solid var(--good);
+    border-radius: 14px; padding: var(--space-md); margin: 6px 0;
+    box-shadow: 0 2px 8px rgba(47, 111, 79, 0.08);
+  }
+  .agent-result .result-title { font-weight: 700; font-size: 0.92rem; color: var(--good); margin-bottom: 8px; }
+  .agent-result .result-body { font-size: 0.85rem; line-height: 1.7; }
+  .agent-result .result-body .stat-item {
+    display: flex; justify-content: space-between;
+    padding: 5px 0; border-bottom: 1px solid var(--border); gap: var(--space-sm);
+  }
 
-  .agent-suggestions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-  .agent-suggestions .chip { background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 5px 14px; font-size: 0.8rem; cursor: pointer; color: var(--text-muted); white-space: nowrap; }
-  .agent-suggestions .chip:hover { border-color: var(--primary); color: var(--primary); }
+  /* Data Table in Chat */
+  .agent-data-table {
+    width: 100%; border-collapse: collapse; font-size: 0.8rem;
+    margin: 8px 0; border-radius: 10px; overflow: hidden;
+  }
+  .agent-data-table th {
+    background: var(--bg); padding: 8px 10px; text-align: right;
+    font-weight: 600; color: var(--text-muted); border-bottom: 2px solid var(--border);
+  }
+  .agent-data-table td {
+    padding: 7px 10px; border-bottom: 1px solid var(--border);
+  }
+  .agent-data-table tr:last-child td { border-bottom: none; }
+  .agent-data-table tr:hover td { background: rgba(0,0,0,0.02); }
+
+  /* Voice Controls Panel */
+  .voice-controls-panel {
+    display: none; padding: var(--space-sm) var(--space-lg);
+    border-top: 1px solid var(--border);
+    background: rgba(0,0,0,0.02); flex-shrink: 0;
+  }
+  .voice-controls-panel.active { display: block; }
+  .voice-controls-row {
+    display: flex; gap: var(--space-md); align-items: center;
+    flex-wrap: wrap; font-size: 0.78rem;
+  }
+  .voice-controls-row label { color: var(--text-muted); white-space: nowrap; }
+  .voice-controls-row select,
+  .voice-controls-row input[type="range"] {
+    font-size: 0.78rem; border-radius: 6px;
+    border: 1px solid var(--border); padding: 3px 6px;
+    background: var(--bg); color: var(--text);
+  }
+  .voice-controls-row input[type="range"] {
+    width: 80px; accent-color: var(--primary);
+  }
+
+  /* TTS Controls Bar */
+  .tts-controls {
+    display: none; align-items: center; gap: 6px;
+    padding: 4px var(--space-lg); font-size: 0.75rem;
+    color: var(--text-muted); flex-shrink: 0;
+  }
+  .tts-controls.active { display: flex; }
+  .tts-controls button {
+    background: none; border: 1px solid var(--border);
+    color: var(--text-muted); padding: 3px 8px; border-radius: 6px;
+    cursor: pointer; font-size: 0.75rem; transition: all 0.2s;
+  }
+  .tts-controls button:hover { border-color: var(--primary); color: var(--primary); }
+
+  /* File Upload */
+  .file-upload-overlay {
+    display: none; position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+  }
+  .file-upload-overlay.active { display: flex; }
+  .file-upload-box {
+    background: var(--surface); border-radius: 16px;
+    padding: var(--space-xl); max-width: 480px; width: 90%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    text-align: center;
+  }
+  .file-upload-dropzone {
+    border: 2px dashed var(--border); border-radius: 12px;
+    padding: var(--space-xl); cursor: pointer;
+    transition: all 0.2s; margin-bottom: var(--space-md);
+  }
+  .file-upload-dropzone:hover,
+  .file-upload-dropzone.dragover {
+    border-color: var(--primary); background: rgba(47, 111, 79, 0.05);
+  }
+  .file-upload-dropzone .upload-icon { font-size: 2.5rem; margin-bottom: var(--space-sm); }
+  .file-upload-dropzone p { margin: 0; color: var(--text-muted); font-size: 0.88rem; }
+  .file-upload-dropzone .formats { font-size: 0.75rem; color: var(--text-muted); margin-top: 6px; }
 
   .typing-dots { display: flex; gap: 4px; padding: 8px 0; }
-  .typing-dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); animation: typingBounce 1.4s infinite ease-in-out both; }
+  .typing-dots span {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-muted);
+    animation: typingBounce 1.4s infinite ease-in-out both;
+  }
   .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
   .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
   @keyframes typingBounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
@@ -430,13 +725,15 @@
     .modal-actions { flex-direction: column-reverse; }
     .modal-actions button { width: 100%; }
     .agent-layout { height: calc(100vh - 50px); max-height: calc(100vh - 50px); }
-    .agent-msg { max-width: 92%; }
-    .agent-msg .avatar { width: 28px; height: 28px; font-size: 0.85rem; }
-    .agent-msg .bubble { padding: 8px 10px; font-size: 0.85rem; }
-    .agent-input-area { flex-direction: column; }
-    .agent-input-area button { width: 100%; }
+    .agent-msg { max-width: 95%; }
+    .agent-msg .avatar { width: 26px; height: 26px; font-size: 0.8rem; }
+    .agent-msg .bubble { padding: 9px 11px; font-size: 0.85rem; }
+    .agent-input-area { flex-direction: column; padding: var(--space-sm); }
+    .agent-input-actions { width: 100%; justify-content: flex-end; }
     .agent-confirm .confirm-actions { flex-direction: column; }
     .agent-confirm .confirm-actions button { width: 100%; }
+    .mic-btn { width: 48px; height: 48px; font-size: 1.2rem; }
+    .voice-controls-row { flex-direction: column; align-items: flex-start; gap: 4px; }
     .agent-suggestions .chip { padding: 4px 10px; font-size: 0.75rem; }
     .inline-row { flex-direction: column; }
     .add-question-row { flex-direction: column; }
@@ -1004,31 +1301,110 @@
 
     <section class="content" id="view-agent">
       <div class="card agent-layout">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:4px;">
-          <div><strong>🤖 مركز القيادة الذكي</strong><span style="font-size:0.8rem;color:var(--text-muted);margin-right:8px;">AI Command Center</span></div>
-          <button type="button" id="agent-clear-btn" class="link-btn" style="font-size:0.8rem;">مسح المحادثة</button>
-        </div>
-        <div class="agent-chat" id="agent-chat">
-          <div class="agent-msg assistant">
-            <div class="avatar">🤖</div>
-            <div class="bubble">
-              👋 مرحباً! أنا مساعد النظام الذكي.<br>
-              يمكنني مساعدتك في:<br>
-              • عرض وإدارة الموظفين<br>
-              • عرض طلبات التوظيف<br>
-              • إرسال الإشعارات<br>
-              • إحصائيات وتقارير<br><br>
-              كيف يمكنني مساعدتك؟
-              <span class="msg-time">الآن</span>
-            </div>
+        <!-- Header -->
+        <div class="agent-header">
+          <div class="agent-header-title">
+            <strong>مركز القيادة الذكي</strong>
+            <span>AI Command Center</span>
+          </div>
+          <div class="agent-header-actions">
+            <button type="button" id="agent-voice-toggle" title="تشغيل/إيقاف الصوت">🔊</button>
+            <button type="button" id="agent-voice-settings" title="إعدادات الصوت">⚙️</button>
+            <button type="button" id="agent-clear-btn" title="مسح المحادثة">🗑️ مسح</button>
           </div>
         </div>
+
+        <!-- Status Bar -->
+        <div class="agent-status-bar">
+          <div class="agent-status-dot connected" id="agent-status-dot"></div>
+          <span id="agent-status-text">جاهز للمحادثة</span>
+          <span style="margin-right:auto;" id="agent-page-context"></span>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="agent-chat" id="agent-chat">
+          <div class="agent-welcome">
+            <div class="agent-welcome-icon">🤖</div>
+            <h3>مرحباً! أنا مساعدك الذكي</h3>
+            <p>يمكنني مساعدتك في إدارة الموظفين، عرض الطلبات، إرسال الإشعارات، تحليل الملفات، والكثير meer. جرّب أن تتحدث أو تكتب أمرك.</p>
+          </div>
+        </div>
+
+        <!-- Voice Visualization -->
+        <div class="voice-viz-container" id="voice-viz">
+          <div class="voice-viz-bar" style="height:8px"></div>
+          <div class="voice-viz-bar" style="height:12px"></div>
+          <div class="voice-viz-bar" style="height:20px"></div>
+          <div class="voice-viz-bar" style="height:28px"></div>
+          <div class="voice-viz-bar" style="height:35px"></div>
+          <div class="voice-viz-bar" style="height:28px"></div>
+          <div class="voice-viz-bar" style="height:20px"></div>
+          <div class="voice-viz-bar" style="height:12px"></div>
+          <div class="voice-viz-bar" style="height:8px"></div>
+          <div class="voice-viz-bar" style="height:20px"></div>
+          <div class="voice-viz-bar" style="height:32px"></div>
+          <div class="voice-viz-bar" style="height:24px"></div>
+          <div class="voice-viz-bar" style="height:16px"></div>
+          <div class="voice-viz-bar" style="height:28px"></div>
+          <div class="voice-viz-bar" style="height:38px"></div>
+          <div class="voice-viz-bar" style="height:24px"></div>
+          <div class="voice-viz-bar" style="height:14px"></div>
+          <div class="voice-viz-bar" style="height:22px"></div>
+          <div class="voice-viz-bar" style="height:30px"></div>
+          <div class="voice-viz-bar" style="height:18px"></div>
+        </div>
+
+        <!-- TTS Controls -->
+        <div class="tts-controls" id="tts-controls">
+          <span>🔊</span>
+          <button type="button" id="tts-stop-btn" title="إيقاف">⏹️</button>
+          <button type="button" id="tts-replay-btn" title="إعادة التشغيل">🔄</button>
+          <label>السرعة:</label>
+          <input type="range" id="tts-speed" min="0.5" max="2" step="0.1" value="1">
+          <span id="tts-speed-val">1x</span>
+          <label>الطبقة:</label>
+          <input type="range" id="tts-pitch" min="0.5" max="2" step="0.1" value="1">
+          <span id="tts-pitch-val">1</span>
+        </div>
+
+        <!-- Suggestions -->
+        <div class="agent-suggestions" id="agent-suggestions"></div>
+
+        <!-- Microphone Button -->
+        <div class="mic-btn-area">
+          <button type="button" class="mic-btn" id="mic-btn" title="اضغط للمحادثة الصوتية">
+            <div class="mic-btn-ring"></div>
+            🎤
+          </button>
+        </div>
+
+        <!-- Text Input -->
         <div class="agent-input-area">
-          <textarea id="agent-input" rows="1" placeholder="اكتب أمرك باللغة العربية..." style="flex:1;"></textarea>
-          <button type="button" id="agent-send-btn">إرسال</button>
+          <textarea id="agent-input" rows="1" placeholder="اكتب أمرك بالعربية أو الإنجليزية..." style="flex:1;"></textarea>
+          <div class="agent-input-actions">
+            <button type="button" id="agent-file-btn" title="رفع ملف">📎</button>
+            <button type="button" id="agent-send-btn" class="send-btn" title="إرسال">➤</button>
+          </div>
         </div>
       </div>
     </section>
+
+    <!-- File Upload Overlay -->
+    <div class="file-upload-overlay" id="file-upload-overlay">
+      <div class="file-upload-box">
+        <h3 style="margin:0 0 12px;">📎 رفع ملف للتحليل</h3>
+        <div class="file-upload-dropzone" id="file-dropzone">
+          <div class="upload-icon">📄</div>
+          <p>اسحب الملف هنا أو اضغط للاختيار</p>
+          <div class="formats">PDF, Word, Excel, صور — حد أقصى 10MB</div>
+        </div>
+        <input type="file" id="file-input" accept=".pdf,.doc,.docx,.xlsx,.xls,.png,.jpg,.jpeg,.txt" style="display:none;">
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button type="button" id="file-cancel-btn" style="padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;">إلغاء</button>
+          <button type="button" id="file-analyze-btn" style="padding:8px 16px;border-radius:8px;border:none;background:var(--primary);color:#fff;cursor:pointer;">تحليل</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -3459,23 +3835,272 @@ document.getElementById("close-detail-btn").addEventListener("click", () => {
 loadOverview();
 
 // ═══════════════════════════════════════════════════════
-// AI Command Center — Chat Interface
+// AI Command Center — Full Voice-Enabled Agent Engine
 // ═══════════════════════════════════════════════════════
 
 let agentConvId = null;
 let agentPendingAction = null;
+let agentVoiceEnabled = true;
+let agentConversationMode = false;
+let agentCurrentPage = "agent";
+let agentTtsText = "";
+let agentLastSuggestions = [];
+
 const agentChat = document.getElementById("agent-chat");
 const agentInput = document.getElementById("agent-input");
 const agentSendBtn = document.getElementById("agent-send-btn");
+const micBtn = document.getElementById("mic-btn");
+const voiceViz = document.getElementById("voice-viz");
+const voiceVizBars = voiceViz.querySelectorAll(".voice-viz-bar");
+const statusDot = document.getElementById("agent-status-dot");
+const statusText = document.getElementById("agent-status-text");
+const pageContext = document.getElementById("agent-page-context");
+const ttsControls = document.getElementById("tts-controls");
+const ttsSpeed = document.getElementById("tts-speed");
+const ttsPitch = document.getElementById("tts-pitch");
+const ttsSpeedVal = document.getElementById("tts-speed-val");
+const ttsPitchVal = document.getElementById("tts-pitch-val");
+const suggestionsEl = document.getElementById("agent-suggestions");
 
-function addAgentMessage(role, content, extra = "") {
+// ─── State Machine ───
+const AgentState = { IDLE: "idle", LISTENING: "listening", THINKING: "thinking", SPEAKING: "speaking", RECORDING: "recording" };
+let agentState = AgentState.IDLE;
+
+function setAgentState(state, text) {
+  agentState = state;
+  statusDot.className = "agent-status-dot " + (state === AgentState.IDLE ? "connected" : state);
+  statusText.textContent = text || {
+    [AgentState.IDLE]: "جاهز للمحادثة",
+    [AgentState.LISTENING]: "أستمع إليك...",
+    [AgentState.THINKING]: "أفكر...",
+    [AgentState.SPEAKING]: "أتحدث...",
+    [AgentState.RECORDING]: "جارٍ التسجيل..."
+  }[state] || "";
+}
+
+// ─── Speech Recognition (STT) ───
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let recognitionRestartTimer = null;
+
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = "ar-SA";
+  recognition.maxAlternatives = 1;
+
+  recognition.onresult = (event) => {
+    let finalTranscript = "";
+    let interimTranscript = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        finalTranscript += transcript;
+      } else {
+        interimTranscript += transcript;
+      }
+    }
+
+    if (interimTranscript) {
+      agentInput.value = interimTranscript;
+      agentInput.style.height = "auto";
+      agentInput.style.height = Math.min(agentInput.scrollHeight, 120) + "px";
+    }
+
+    if (finalTranscript) {
+      agentInput.value = finalTranscript;
+      handleVoiceInput(finalTranscript);
+    }
+  };
+
+  recognition.onerror = (event) => {
+    if (event.error === "no-speech" || event.error === "aborted") {
+      if (agentConversationMode && agentState !== AgentState.SPEAKING) {
+        restartRecognition(500);
+      }
+      return;
+    }
+    console.warn("STT error:", event.error);
+    setAgentState(AgentState.IDLE);
+  };
+
+  recognition.onend = () => {
+    if (agentConversationMode && agentState !== AgentState.SPEAKING && agentState !== AgentState.THINKING) {
+      restartRecognition(300);
+    } else if (agentState === AgentState.LISTENING) {
+      setAgentState(AgentState.IDLE);
+    }
+  };
+}
+
+function restartRecognition(delay) {
+  clearTimeout(recognitionRestartTimer);
+  recognitionRestartTimer = setTimeout(() => {
+    if (recognition && agentConversationMode && agentState !== AgentState.SPEAKING && agentState !== AgentState.THINKING) {
+      try {
+        recognition.start();
+        setAgentState(AgentState.LISTENING);
+      } catch (e) {}
+    }
+  }, delay);
+}
+
+function startListening() {
+  if (!recognition) {
+    addAgentMessage("assistant", "❌ المتصفح لا يدعم التعرف على الصوت. استخدم Chrome أو Edge.");
+    return;
+  }
+  stopSpeaking();
+  try {
+    recognition.lang = detectLanguage(agentInput.value) === "ar" ? "ar-SA" : "en-US";
+    recognition.start();
+    setAgentState(AgentState.RECORDING);
+    startVoiceVisualization();
+    agentInput.value = "";
+    agentInput.placeholder = "أستمع إليك...";
+  } catch (e) {
+    console.warn("STT start error:", e);
+  }
+}
+
+function stopListening() {
+  if (recognition) {
+    try { recognition.stop(); } catch (e) {}
+  }
+  stopVoiceVisualization();
+  agentInput.placeholder = "اكتب أمرك بالعربية أو الإنجليزية...";
+  if (agentState === AgentState.RECORDING) setAgentState(AgentState.IDLE);
+}
+
+function handleVoiceInput(text) {
+  stopListening();
+  stopVoiceVisualization();
+
+  // Wake Word Check
+  const wakeWords = ["مرحبا مساعد", "يا مساعد", "hey assistant", "hello assistant", "مساعد"];
+  const isWakeWord = wakeWords.some(w => text.toLowerCase().startsWith(w));
+  if (isWakeWord) {
+    const cleaned = text.replace(/^(مرحبا مساعد|يا مساعد|hey assistant|hello assistant|مساعد)\s*/i, "").trim();
+    if (cleaned) {
+      sendAgentMessage(cleaned);
+    } else {
+      addAgentMessage("assistant", "نعم؟ أنا هنا. كيف يمكنني مساعدتك؟");
+      if (agentConversationMode) restartRecognition(500);
+    }
+    return;
+  }
+
+  sendAgentMessage(text);
+}
+
+// ─── Voice Visualization ───
+let vizAnimFrame = null;
+let vizAnalyser = null;
+let vizAudioCtx = null;
+
+function startVoiceVisualization() {
+  voiceViz.classList.add("active");
+  animateViz();
+}
+
+function stopVoiceVisualization() {
+  voiceViz.classList.remove("active");
+  cancelAnimationFrame(vizAnimFrame);
+  voiceVizBars.forEach(bar => bar.style.height = "4px");
+}
+
+function animateViz() {
+  if (!voiceViz.classList.contains("active")) return;
+  voiceVizBars.forEach((bar, i) => {
+    const h = agentState === AgentState.SPEAKING
+      ? 8 + Math.random() * 30
+      : 4 + Math.random() * 20;
+    bar.style.height = h + "px";
+  });
+  vizAnimFrame = requestAnimationFrame(() => setTimeout(animateViz, 60));
+}
+
+// ─── Text-to-Speech (TTS) ───
+let currentUtterance = null;
+
+function speak(text) {
+  if (!agentVoiceEnabled || !window.speechSynthesis) return;
+  stopSpeaking();
+
+  agentTtsText = text;
+  const cleanText = text.replace(/[*#`>\[\]{}|_]/g, "").replace(/\n+/g, ". ").trim();
+  if (!cleanText) return;
+
+  currentUtterance = new SpeechSynthesisUtterance(cleanText);
+  currentUtterance.lang = detectLanguage(cleanText) === "ar" ? "ar-SA" : "en-US";
+  currentUtterance.rate = parseFloat(ttsSpeed.value) || 1;
+  currentUtterance.pitch = parseFloat(ttsPitch.value) || 1;
+
+  const voices = speechSynthesis.getVoices();
+  const lang = detectLanguage(cleanText);
+  const preferred = lang === "ar"
+    ? voices.find(v => v.lang.startsWith("ar") && v.name.includes("Female"))
+      || voices.find(v => v.lang.startsWith("ar"))
+    : voices.find(v => v.lang.startsWith("en") && v.name.includes("Google"))
+      || voices.find(v => v.lang.startsWith("en"));
+  if (preferred) currentUtterance.voice = preferred;
+
+  currentUtterance.onstart = () => {
+    setAgentState(AgentState.SPEAKING, "أتحدث...");
+    ttsControls.classList.add("active");
+    startVoiceVisualization();
+    voiceViz.classList.add("speaking");
+  };
+  currentUtterance.onend = () => {
+    voiceViz.classList.remove("speaking");
+    stopVoiceVisualization();
+    ttsControls.classList.remove("active");
+    setAgentState(AgentState.IDLE);
+    if (agentConversationMode) restartRecognition(400);
+  };
+  currentUtterance.onerror = () => {
+    voiceViz.classList.remove("speaking");
+    stopVoiceVisualization();
+    ttsControls.classList.remove("active");
+    setAgentState(AgentState.IDLE);
+  };
+
+  speechSynthesis.speak(currentUtterance);
+}
+
+function stopSpeaking() {
+  if (speechSynthesis) speechSynthesis.cancel();
+  currentUtterance = null;
+  voiceViz.classList.remove("speaking");
+  stopVoiceVisualization();
+  ttsControls.classList.remove("active");
+}
+
+function replaySpeaking() {
+  if (agentTtsText) speak(agentTtsText);
+}
+
+function detectLanguage(text) {
+  const arabicRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/;
+  return arabicRegex.test(text) ? "ar" : "en";
+}
+
+// ─── UI Helpers ───
+function removeWelcome() {
+  const w = agentChat.querySelector(".agent-welcome");
+  if (w) w.remove();
+}
+
+function addAgentMessage(role, content, extra) {
+  removeWelcome();
   const div = document.createElement("div");
   div.className = `agent-msg ${role}`;
   const avatar = role === "assistant" ? "🤖" : "👤";
   const time = new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" });
   div.innerHTML = `
     <div class="avatar">${avatar}</div>
-    <div class="bubble">${content}<span class="msg-time">${time}</span></div>
+    <div class="bubble">${content.replace(/\n/g, "<br>")}<span class="msg-time">${time}</span></div>
   `;
   agentChat.appendChild(div);
   if (extra) {
@@ -3487,6 +4112,7 @@ function addAgentMessage(role, content, extra = "") {
 }
 
 function addTypingIndicator() {
+  removeWelcome();
   const div = document.createElement("div");
   div.className = "agent-msg assistant";
   div.id = "agent-typing";
@@ -3504,6 +4130,22 @@ function removeTypingIndicator() {
   const el = document.getElementById("agent-typing");
   if (el) el.remove();
 }
+
+function renderSuggestions(suggestions) {
+  agentLastSuggestions = suggestions || [];
+  if (!suggestionsEl || !suggestions || !suggestions.length) return;
+  suggestionsEl.innerHTML = suggestions.map(s =>
+    `<span class="chip" onclick="setAgentInput('${s.replace(/'/g, "\\'")}')">${s}</span>`
+  ).join("");
+}
+
+function setAgentInput(text) {
+  agentInput.value = text;
+  agentInput.focus();
+  agentInput.style.height = "auto";
+  agentInput.style.height = Math.min(agentInput.scrollHeight, 120) + "px";
+}
+window.setAgentInput = setAgentInput;
 
 function renderConfirmation(action) {
   const params = action.parameters || {};
@@ -3536,15 +4178,24 @@ function renderConfirmation(action) {
 function renderResult(summary, result) {
   let extraHtml = "";
   if (result) {
-    if (result.items && Array.isArray(result.items)) {
-      const tableRows = result.items.slice(0, 10).map(item => {
-        const name = item.full_name || item.title || item.name || "-";
-        const detail = item.job_title || item.email || item.status || "-";
-        return `<div class="stat-item"><span>${name}</span><span style="color:var(--text-muted)">${detail}</span></div>`;
-      }).join("");
-      extraHtml = `<div class="result-body" style="margin-top:8px;">${tableRows}</div>`;
-      if (result.items.length > 10) {
-        extraHtml += `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">...و${result.items.length - 10} آخرون</div>`;
+    if (result.items && Array.isArray(result.items) && result.items.length > 0) {
+      const isEmployee = result.items[0].full_name;
+      if (isEmployee && result.items.length > 1) {
+        let tableHtml = '<table class="agent-data-table"><thead><tr><th>الاسم</th><th>المسمى</th><th>الجنسية</th></tr></thead><tbody>';
+        result.items.slice(0, 15).forEach(item => {
+          tableHtml += `<tr><td>${item.full_name || "-"}</td><td>${item.job_title || "-"}</td><td>${item.nationality || "-"}</td></tr>`;
+        });
+        tableHtml += "</tbody></table>";
+        if (result.items.length > 15) tableHtml += `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;">...و${result.items.length - 15} آخرون</div>`;
+        extraHtml = tableHtml;
+      } else {
+        const tableRows = result.items.slice(0, 10).map(item => {
+          const name = item.full_name || item.title || item.name || "-";
+          const detail = item.job_title || item.email || item.status || "-";
+          return `<div class="stat-item"><span>${name}</span><span style="color:var(--text-muted)">${detail}</span></div>`;
+        }).join("");
+        extraHtml = `<div class="result-body" style="margin-top:8px;">${tableRows}</div>`;
+        if (result.items.length > 10) extraHtml += `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;">...و${result.items.length - 10} آخرون</div>`;
       }
     }
     if (result.employee) {
@@ -3565,6 +4216,25 @@ function renderResult(summary, result) {
         <div class="stat-item"><span>💼 الوظائف</span><span>${s.jobs}</span></div>
       </div>`;
     }
+    if (result.departments) {
+      const deptEntries = Object.entries(result.departments).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      const maxVal = deptEntries.length ? deptEntries[0][1] : 1;
+      let deptHtml = '<div style="margin-top:8px;">';
+      deptEntries.forEach(([dept, count]) => {
+        const pct = Math.round((count / result.total_employees) * 100);
+        const barWidth = Math.round((count / maxVal) * 100);
+        deptHtml += `<div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:0.8rem;">
+          <span style="width:80px;text-align:left;color:var(--text-muted);flex-shrink:0;">${dept}</span>
+          <div style="flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+            <div style="width:${barWidth}%;height:100%;background:linear-gradient(90deg,var(--primary),#6366f1);border-radius:4px;"></div>
+          </div>
+          <span style="width:40px;font-weight:600;">${count}</span>
+          <span style="width:35px;color:var(--text-muted);font-size:0.72rem;">${pct}%</span>
+        </div>`;
+      });
+      deptHtml += '</div>';
+      extraHtml = deptHtml;
+    }
     if (result.sent_count !== undefined) {
       extraHtml = `<div class="result-body">
         <div class="stat-item"><span>تم الإرسال إلى</span><span>${result.sent_count}</span></div>
@@ -3576,7 +4246,18 @@ function renderResult(summary, result) {
     }
     if (result.is_download) {
       extraHtml = `<div class="result-body" style="text-align:center;padding:8px 0;">
-        <button onclick="downloadAgentFile('${result.data_base64}', '${result.filename}', '${result.content_type}')" style="padding:10px 20px;">📥 تحميل التقرير</button>
+        <button onclick="downloadAgentFile('${result.data_base64}', '${result.filename}', '${result.content_type}')" style="padding:10px 20px;border-radius:10px;border:none;background:var(--primary);color:#fff;cursor:pointer;">📥 تحميل التقرير</button>
+      </div>`;
+    }
+    if (result.analysis) {
+      extraHtml = `<div class="result-body" style="margin-top:8px;padding:10px;background:var(--bg);border-radius:10px;white-space:pre-wrap;font-size:0.85rem;">${result.analysis}</div>`;
+    }
+    if (result.report) {
+      const r = result.report;
+      extraHtml = `<div class="result-body">
+        <div class="stat-item"><span>إجمالي الموظفين</span><span>${r.total_employees || 0}</span></div>
+        <div class="stat-item"><span>السعوديون</span><span>${r.saudi_employees || 0}</span></div>
+        <div class="stat-item"><span>نسبة السعودة</span><span>${r.saudization_percent || 0}%</span></div>
       </div>`;
     }
   }
@@ -3594,45 +4275,107 @@ function renderResult(summary, result) {
     </div>
   `;
   agentChat.appendChild(div);
+  agentChat.scrollTop = agentChat.scrollHeight;
+}
 
-  if (!agentPendingAction) {
-    addSuggestions();
+function renderNavigate(view) {
+  const viewMap = {
+    "overview": "overview", "applications": "applications", "jobs": "jobs",
+    "employees": "employees", "compliance": "compliance",
+    "resume-analysis": "resume-analysis", "criteria": "criteria",
+    "audit": "audit", "system": "system", "agent": "agent"
+  };
+  const targetView = viewMap[view] || view;
+  if (typeof switchView === "function") {
+    switchView(targetView);
+  } else {
+    document.querySelectorAll(".nav-item").forEach(n => {
+      if (n.dataset.view === targetView) n.click();
+    });
   }
-  agentChat.scrollTop = agentChat.scrollHeight;
+  agentCurrentPage = targetView;
+  updatePageContext();
 }
 
-function addSuggestions() {
-  const suggestions = [
-    "عرض الموظفين",
-    "إحصائيات النظام",
-    "كم عدد الموظفين؟",
-    "عرض طلبات التوظيف",
-    "أرسل إشعار للجميع",
-  ];
-  const div = document.createElement("div");
-  div.className = "agent-msg assistant";
-  div.innerHTML = `
-    <div class="avatar">🤖</div>
-    <div class="bubble" style="background:none;border:none;padding:4px 0;">
-      <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:4px;">💡 اقتراحات:</div>
-      <div class="agent-suggestions">
-        ${suggestions.map(s => `<span class="chip" onclick="setAgentInput('${s}')">${s}</span>`).join("")}
-      </div>
-    </div>
-  `;
-  agentChat.appendChild(div);
-  agentChat.scrollTop = agentChat.scrollHeight;
+function updatePageContext() {
+  const pageNames = {
+    overview: "نظرة عامة", applications: "الطلبات", jobs: "الوظائف",
+    employees: "الموظفون", compliance: "الامتثال",
+    "resume-analysis": "تحليل السيرة الذاتية", criteria: "المعايير",
+    audit: "سجل التدقيق", system: "النظام", agent: "مركز القيادة"
+  };
+  pageContext.textContent = "📍 " + (pageNames[agentCurrentPage] || "");
 }
 
-function setAgentInput(text) {
-  agentInput.value = text;
-  agentInput.focus();
+// ─── Core: Send Message ───
+async function sendAgentMessage(text) {
+  text = text || agentInput.value.trim();
+  if (!text) return;
+  if (agentSendBtn.disabled) return;
+  agentSendBtn.disabled = true;
+
+  removeWelcome();
+  addAgentMessage("user", text.replace(/\n/g, "<br>"));
+  agentInput.value = "";
+  agentInput.style.height = "auto";
+
+  setAgentState(AgentState.THINKING);
+  addTypingIndicator();
+
+  try {
+    const res = await apiFetch(`${API_BASE}/agent/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: text,
+        conversation_id: agentConvId,
+        current_page: agentCurrentPage,
+        voice_mode: agentState === AgentState.RECORDING || agentState === AgentState.LISTENING
+      }),
+    });
+    const data = await res.json();
+    removeTypingIndicator();
+    agentConvId = data.conversation_id;
+
+    if (data.type === "text_response") {
+      addAgentMessage("assistant", data.message_ar);
+      renderSuggestions(data.suggestions);
+      if (agentVoiceEnabled) speak(data.message_ar);
+    } else if (data.type === "navigate") {
+      addAgentMessage("assistant", data.message_ar);
+      renderNavigate(data.navigate_to);
+      renderSuggestions(data.suggestions);
+      if (agentVoiceEnabled) speak(data.message_ar);
+    } else if (data.type === "tool_call") {
+      addAgentMessage("assistant", data.message_ar);
+      if (data.action && data.action.needs_confirmation) {
+        agentPendingAction = data.action;
+        renderConfirmation(data.action);
+        if (agentVoiceEnabled) speak(data.message_ar);
+      } else {
+        agentPendingAction = data.action;
+        await window.executeAgentAction();
+      }
+    } else if (data.type === "error") {
+      addAgentMessage("assistant", "❌ " + data.message_ar);
+      renderSuggestions(data.suggestions || ["عرض الموظفين", "إحصائيات النظام", "مسح المحادثة"]);
+      if (agentVoiceEnabled) speak(data.message_ar);
+    }
+  } catch (e) {
+    removeTypingIndicator();
+    addAgentMessage("assistant", "❌ خطأ في الاتصال: " + e.message);
+    renderSuggestions(["إعادة المحاولة", "عرض الموظفين"]);
+  }
+
+  agentSendBtn.disabled = false;
+  setAgentState(AgentState.IDLE);
 }
 
 window.executeAgentAction = async function() {
   if (!agentPendingAction) return;
   removeTypingIndicator();
   addTypingIndicator();
+  setAgentState(AgentState.THINKING);
 
   try {
     const res = await apiFetch(`${API_BASE}/agent/confirm`, {
@@ -3647,18 +4390,24 @@ window.executeAgentAction = async function() {
 
     if (data.type === "tool_result") {
       renderResult(data.message_ar, data.result);
+      renderSuggestions(data.suggestions);
+      if (agentVoiceEnabled) speak(data.message_ar);
+      if (data.result && data.result.navigate) {
+        renderNavigate(data.result.view);
+      }
     } else if (data.type === "error") {
       addAgentMessage("assistant", "❌ " + data.message_ar);
-      addSuggestions();
+      renderSuggestions(data.suggestions);
     } else {
       addAgentMessage("assistant", data.message_ar);
-      addSuggestions();
+      renderSuggestions(data.suggestions);
+      if (agentVoiceEnabled) speak(data.message_ar);
     }
   } catch (e) {
     removeTypingIndicator();
-    addAgentMessage("assistant", "❌ خطأ في الاتصال: " + e.message);
-    addSuggestions();
+    addAgentMessage("assistant", "❌ خطأ في التنفيذ: " + e.message);
   }
+  setAgentState(AgentState.IDLE);
 };
 
 window.cancelAgentAction = async function() {
@@ -3672,110 +4421,201 @@ window.cancelAgentAction = async function() {
   } catch (_) {}
   agentPendingAction = null;
   addAgentMessage("assistant", "تم إلغاء الطلب");
-  addSuggestions();
+  renderSuggestions(agentLastSuggestions.length ? agentLastSuggestions : ["عرض الموظفين", "إحصائيات النظام"]);
 };
 
 window.downloadAgentFile = function(base64, filename, mimeType) {
   const byteChars = atob(base64);
   const byteNums = new Array(byteChars.length);
-  for (let i = 0; i < byteChars.length; i++) {
-    byteNums[i] = byteChars.charCodeAt(i);
-  }
-  const byteArray = new Uint8Array(byteNums);
-  const blob = new Blob([byteArray], { type: mimeType });
+  for (let i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
+  const blob = new Blob([new Uint8Array(byteNums)], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
+  a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 };
 
-async function sendAgentMessage() {
-  const text = agentInput.value.trim();
-  if (!text) return;
-
-  if (agentSendBtn.disabled) return;
-  agentSendBtn.disabled = true;
-
-  addAgentMessage("user", text.replace(/\n/g, "<br>"));
-  agentInput.value = "";
-  agentInput.style.height = "auto";
-
-  addTypingIndicator();
-
-  try {
-    const res = await apiFetch(`${API_BASE}/agent/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text, conversation_id: agentConvId }),
-    });
-    const data = await res.json();
-    removeTypingIndicator();
-    agentConvId = data.conversation_id;
-
-    if (data.type === "text_response") {
-      addAgentMessage("assistant", data.message_ar.replace(/\n/g, "<br>"));
-      addSuggestions();
-    } else if (data.type === "tool_call") {
-      addAgentMessage("assistant", data.message_ar.replace(/\n/g, "<br>"));
-      if (data.action && data.action.needs_confirmation) {
-        agentPendingAction = data.action;
-        renderConfirmation(data.action);
-      } else {
-        // Auto-execute if no confirmation needed
-        agentPendingAction = data.action;
-        await window.executeAgentAction();
-      }
-    } else if (data.type === "error") {
-      addAgentMessage("assistant", "❌ " + data.message_ar.replace(/\n/g, "<br>"));
-      addSuggestions();
-    }
-  } catch (e) {
-    removeTypingIndicator();
-    addAgentMessage("assistant", "❌ خطأ في الاتصال: " + e.message);
-    addSuggestions();
-  }
-
-  agentSendBtn.disabled = false;
-}
-
-agentSendBtn.addEventListener("click", sendAgentMessage);
+// ─── Event Listeners ───
+agentSendBtn.addEventListener("click", () => sendAgentMessage());
 agentInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    sendAgentMessage();
-  }
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendAgentMessage(); }
 });
 agentInput.addEventListener("input", () => {
   agentInput.style.height = "auto";
   agentInput.style.height = Math.min(agentInput.scrollHeight, 120) + "px";
 });
 
+// Microphone Button
+micBtn.addEventListener("click", () => {
+  if (agentState === AgentState.RECORDING || agentState === AgentState.LISTENING) {
+    stopListening();
+    const text = agentInput.value.trim();
+    if (text) sendAgentMessage(text);
+  } else if (agentState === AgentState.SPEAKING) {
+    stopSpeaking();
+    startListening();
+  } else {
+    startListening();
+  }
+});
+
+// Toggle conversation mode on double-click
+micBtn.addEventListener("dblclick", () => {
+  agentConversationMode = !agentConversationMode;
+  if (agentConversationMode) {
+    addAgentMessage("assistant", "🔄 وضع المحادثة المستمر مفعّل. سأستمع باستمرار. اضغط على الميكروفون مرة أخرى لإيقافه.");
+    startListening();
+  } else {
+    addAgentMessage("assistant", "⏹️ تم إيقاف وضع المحادثة المستمر.");
+    stopListening();
+  }
+});
+
+// Voice toggle
+document.getElementById("agent-voice-toggle").addEventListener("click", () => {
+  agentVoiceEnabled = !agentVoiceEnabled;
+  document.getElementById("agent-voice-toggle").textContent = agentVoiceEnabled ? "🔊" : "🔇";
+  if (!agentVoiceEnabled) stopSpeaking();
+});
+
+// Voice settings
+document.getElementById("agent-voice-settings").addEventListener("click", () => {
+  ttsControls.classList.toggle("active");
+});
+
+// TTS controls
+ttsSpeed.addEventListener("input", () => { ttsSpeedVal.textContent = ttsSpeed.value + "x"; });
+ttsPitch.addEventListener("input", () => { ttsPitchVal.textContent = ttsPitch.value; });
+document.getElementById("tts-stop-btn").addEventListener("click", stopSpeaking);
+document.getElementById("tts-replay-btn").addEventListener("click", replaySpeaking);
+
+// Clear conversation
 document.getElementById("agent-clear-btn").addEventListener("click", async () => {
   if (agentConvId) {
-    try {
-      await apiFetch(`${API_BASE}/agent/clear?conv_id=${agentConvId}`, { method: "POST" });
-    } catch (_) {}
+    try { await apiFetch(`${API_BASE}/agent/clear?conv_id=${agentConvId}`, { method: "POST" }); } catch (_) {}
   }
   agentConvId = null;
   agentPendingAction = null;
   agentChat.innerHTML = `
-    <div class="agent-msg assistant">
-      <div class="avatar">🤖</div>
-      <div class="bubble">
-        👋 مرحباً! أنا مساعد النظام الذكي.<br>
-        يمكنني مساعدتك في:<br>
-        • عرض وإدارة الموظفين<br>
-        • عرض طلبات التوظيف<br>
-        • إرسال الإشعارات<br>
-        • إحصائيات وتقارير<br><br>
-        كيف يمكنني مساعدتك؟
-        <span class="msg-time">الآن</span>
-      </div>
+    <div class="agent-welcome">
+      <div class="agent-welcome-icon">🤖</div>
+      <h3>مرحباً! أنا مساعدك الذكي</h3>
+      <p>يمكنني مساعدتك في إدارة الموظفين، عرض الطلبات، إرسال الإشعارات، تحليل الملفات، والكثير meer. جرّب أن تتحدث أو تكتب أمرك.</p>
     </div>
   `;
+  suggestionsEl.innerHTML = "";
+  renderSuggestions(["عرض الموظفين", "إحصائيات النظام", "عرض الطلبات", "تحليل السيرة الذاتية", "rapport mensuel"]);
 });
+
+// ─── File Upload ───
+const fileOverlay = document.getElementById("file-upload-overlay");
+const fileDropzone = document.getElementById("file-dropzone");
+const fileInput = document.getElementById("file-input");
+let selectedFile = null;
+
+document.getElementById("agent-file-btn").addEventListener("click", () => {
+  fileOverlay.classList.add("active");
+});
+
+document.getElementById("file-cancel-btn").addEventListener("click", () => {
+  fileOverlay.classList.remove("active");
+  selectedFile = null;
+  fileInput.value = "";
+});
+
+fileDropzone.addEventListener("click", () => fileInput.click());
+fileDropzone.addEventListener("dragover", (e) => { e.preventDefault(); fileDropzone.classList.add("dragover"); });
+fileDropzone.addEventListener("dragleave", () => fileDropzone.classList.remove("dragover"));
+fileDropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  fileDropzone.classList.remove("dragover");
+  if (e.dataTransfer.files.length) {
+    selectedFile = e.dataTransfer.files[0];
+    fileDropzone.querySelector("p").textContent = "📎 " + selectedFile.name;
+  }
+});
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) {
+    selectedFile = fileInput.files[0];
+    fileDropzone.querySelector("p").textContent = "📎 " + selectedFile.name;
+  }
+});
+
+document.getElementById("file-analyze-btn").addEventListener("click", async () => {
+  if (!selectedFile) return;
+  fileOverlay.classList.remove("active");
+
+  addAgentMessage("user", "📎 رفع الملف: " + selectedFile.name);
+  addTypingIndicator();
+  setAgentState(AgentState.THINKING);
+
+  try {
+    let fileText = "";
+    if (selectedFile.type === "text/plain" || selectedFile.name.endsWith(".txt")) {
+      fileText = await selectedFile.text();
+    } else {
+      const extractRes = await apiFetch(`${API_BASE}/extract/file`, {
+        method: "POST",
+        body: (() => { const fd = new FormData(); fd.append("file", selectedFile); return fd; })(),
+      });
+      const extractData = await extractRes.json();
+      fileText = extractData.text || extractData.detail || "لم يتم استخراج النص";
+    }
+
+    const res = await apiFetch(`${API_BASE}/agent/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: `حلل الملف "${selectedFile.name}" و迎المحتوى التالي:\n\n${fileText.substring(0, 8000)}`,
+        conversation_id: agentConvId,
+        current_page: agentCurrentPage,
+      }),
+    });
+    const data = await res.json();
+    removeTypingIndicator();
+    agentConvId = data.conversation_id;
+
+    if (data.type === "text_response") {
+      addAgentMessage("assistant", data.message_ar);
+      renderSuggestions(data.suggestions);
+      if (agentVoiceEnabled) speak(data.message_ar);
+    } else {
+      addAgentMessage("assistant", data.message_ar || "تم تحليل الملف");
+    }
+  } catch (e) {
+    removeTypingIndicator();
+    addAgentMessage("assistant", "❌ خطأ في تحليل الملف: " + e.message);
+  }
+
+  selectedFile = null;
+  fileInput.value = "";
+  setAgentState(AgentState.IDLE);
+});
+
+// ─── Page Context Detection ───
+function detectCurrentPage() {
+  const activeNav = document.querySelector(".nav-item.active");
+  if (activeNav && activeNav.dataset.view) {
+    agentCurrentPage = activeNav.dataset.view;
+    updatePageContext();
+  }
+}
+
+// Observe nav changes
+const navObserver = new MutationObserver(() => detectCurrentPage());
+document.querySelectorAll(".nav-item").forEach(n => {
+  navObserver.observe(n, { attributes: true, attributeFilter: ["class"] });
+});
+
+// Initial suggestions
+renderSuggestions(["عرض الموظفين", "إحصائيات النظام", "عرض الطلبات", "rapport mensuel", "تحليل السيرة الذاتية"]);
+updatePageContext();
+
+// Load voices for TTS
+if (window.speechSynthesis) {
+  speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+  speechSynthesis.getVoices();
+}
 </script>
 </body>
 </html>

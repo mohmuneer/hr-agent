@@ -18,37 +18,39 @@ from app.core.config import get_settings
 
 CONVERSATIONS: dict[str, list[dict]] = {}
 
-SYSTEM_PROMPT = """أنت مساعد AI Command Center لنظام الموارد البشرية.
-مهمتك هي فهم طلبات مدير النظام باللغة العربية وتنفيذها عبر الأدوات المتاحة.
+SYSTEM_PROMPT = """أنت مساعد ذكي مدمج بالكامل في نظام موارد البشرية (HR Agent). أنت مركز القيادة الذكي الذي يتحكم في النظام بالكامل.
 
-لديك الأدوات التالية:
+قدراتك:
+1. فهم اللغة الطبيعية بالعربية (جميع اللهجات: سعودية، خليجية، مصرية، يمنية، فصحى) والإنجليزية.
+2. تنفيذ أوامر المستخدم داخل النظام (عرض، إضافة، تعديل، حذف، بحث).
+3. التنقل بين الصفحات.
+4. عرض الإحصائيات والتقارير.
+5. تحليل الملفات المرفوعة.
+6. إرسال الإشعارات.
+7. حساب المستحقات المالية (GOSI، مكافأة نهاية الخدمة).
+8. التحقق من الامتثال (الإقامات، السعودة).
 
+الأدوات المتاحة:
 {tools_block}
 
-تعليمات مهمة:
-1. حلّل رسالة المستخدم واختر الأداة المناسبة.
-2. استخرج المعاملات (parameters) من الرسالة بدقة.
-3. إذا كان الطلب محادثة عادية وليس أمراً تنفيذياً، أجب مباشرة.
-4. إذا طلب المستخدم معلومات (عرض، قائمة، إحصائيات) - قدِّمها بلا تأكيد.
-5. إذا طلب المستخدم تنفيذ عملية (إضافة، تعديل، حذف، إرسال) - اطلب تأكيداً.
-6. أعد الرد بصيغة JSON فقط.
+قواعد مهمة:
+1. حلّل رسالة المستخدم بدقة واختر الأداة المناسبة.
+2. إذا كان الطلب محادثة عادية (سؤال عام، تحيّة، شكر) - أجب مباشرة بدون أداة.
+3. إذا طلب المستخدم معلومات (عرض، قائمة، إحصائيات، بحث) - نفّذ الأداة مباشرة بدون تأكيد.
+4. إذا طلب المستخدم تنفيذ عملية خطيرة (إضافة، تعديل، حذف، إرسال) - اطلب تأكيداً.
+5. إذا طلب المستخدم الانتقال إلى صفحة - استخدم أداة navigate_to_page.
+6. إذا كان المستخدم في صفحة معينة وطلب شيئاً مرتبطاً بها - اعرض بيانات تلك الصفحة.
+7. قدم اقتراحات مفيدة بعد كل رد.
+8. كن مختصراً ومحدداً في ردودك. لا تكتب فقرات طويلة.
+9. إذا كان الطلب غامضاً، اسأل المستخدم للتوضيح.
+10. تذكر سياق المحادثة السابقة.
 
-صيغة الرد المطلوبة:
-- للرد النصي المباشر:
-{{"type": "text_response", "message_ar": "نص الرد"}}
-
-- لاستدعاء أداة:
-{{"type": "tool_call", "action": {{"tool": "اسم_الأداة", "parameters": {{...}}, "explanation_ar": "شرح ما سينفذه", "needs_confirmation": true/false}}}}
-
-- للخطأ:
-{{"type": "error", "message_ar": "وصف الخطأ"}}
-
-ملاحظات:
-- لا تستدعِ أداة غير موجودة.
-- تأكد من ملء المعاملات المطلوبة.
-- للأوامر الخطيرة (إضافة/تعديل/حذف/إرسال) اجعل needs_confirmation = true.
-- للأوامر الاستعلامية (عرض/بحث/إحصائيات) اجعل needs_confirmation = false.
-"""
+صيغة الرد JSON:
+- رد نصي: {{"type": "text_response", "message_ar": "الرد", "suggestions": ["اقتراح1", "اقتراح2"]}}
+- استدعاء أداة: {{"type": "tool_call", "action": {{"tool": "اسم_الأداة", "parameters": {{...}}, "explanation_ar": "شرح", "needs_confirmation": true/false}}, "suggestions": ["اقتراح1"]}}
+- نتائج: {{"type": "tool_result", "message_ar": "الملخص", "result": {{...}}, "suggestions": ["اقتراح1"]}}
+- انتقال: {{"type": "navigate", "navigate_to": "اسم_الصفحة", "message_ar": "جارٍ الانتقال..."}}
+- خطأ: {{"type": "error", "message_ar": "وصف الخطأ"}}"""
 
 
 def _format_tools_for_prompt() -> str:
@@ -95,10 +97,16 @@ def _call_llm(system: str, messages: list[dict]) -> str:
     return generate_text(prompt, max_tokens=2000)
 
 
-def process_message(message: str, conv_id: str | None = None) -> AgentChatResponse:
+def process_message(message: str, conv_id: str | None = None, current_page: str | None = None, voice_mode: bool = False) -> AgentChatResponse:
     conv_id, history = _get_or_create_conv(conv_id)
 
-    history.append({"role": "user", "content": message, "timestamp": datetime.now(timezone.utc).isoformat()})
+    user_msg = message
+    if current_page:
+        user_msg += f"\n[الصفحة الحالية: {current_page}]"
+    if voice_mode:
+        user_msg += "\n[الطلب جاء من وضع الصوت]"
+
+    history.append({"role": "user", "content": user_msg, "timestamp": datetime.now(timezone.utc).isoformat()})
 
     system = SYSTEM_PROMPT.format(tools_block=_format_tools_for_prompt())
 
@@ -127,11 +135,13 @@ def process_message(message: str, conv_id: str | None = None) -> AgentChatRespon
 
     if resp_type == "text_response":
         text = parsed.get("message_ar", "")
+        suggestions = parsed.get("suggestions")
         history.append({"role": "assistant", "content": text, "timestamp": datetime.now(timezone.utc).isoformat()})
         return AgentChatResponse(
             type="text_response",
             message_ar=text,
             conversation_id=conv_id,
+            suggestions=suggestions,
         )
 
     if resp_type == "error":
@@ -149,6 +159,7 @@ def process_message(message: str, conv_id: str | None = None) -> AgentChatRespon
         params = action_data.get("parameters", {})
         explanation = action_data.get("explanation_ar", "")
         needs_confirmation = action_data.get("needs_confirmation", True)
+        suggestions = parsed.get("suggestions")
 
         if not tool_name:
             return AgentChatResponse(
@@ -175,6 +186,20 @@ def process_message(message: str, conv_id: str | None = None) -> AgentChatRespon
                 needs_confirmation=needs_confirmation,
             ),
             conversation_id=conv_id,
+            suggestions=suggestions,
+        )
+
+    if resp_type == "navigate":
+        navigate_to = parsed.get("navigate_to", "")
+        text = parsed.get("message_ar", f"جارٍ الانتقال إلى {navigate_to}...")
+        suggestions = parsed.get("suggestions")
+        history.append({"role": "assistant", "content": text, "timestamp": datetime.now(timezone.utc).isoformat()})
+        return AgentChatResponse(
+            type="navigate",
+            message_ar=text,
+            navigate_to=navigate_to,
+            conversation_id=conv_id,
+            suggestions=suggestions,
         )
 
     return AgentChatResponse(
@@ -233,11 +258,14 @@ def confirm_and_execute(conv_id: str, confirm: bool = True) -> AgentChatResponse
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
 
+        navigate_to = result.pop("navigate_to", None) or result.pop("view", None)
+
         return AgentChatResponse(
             type="tool_result",
             message_ar=summary,
             result=result,
             conversation_id=conv_id,
+            navigate_to=navigate_to,
         )
     else:
         error_msg = result.get("error", "فشل التنفيذ")

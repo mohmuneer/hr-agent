@@ -295,6 +295,110 @@ TOOL_DEFINITIONS = [
         },
         "needs_confirmation": False,
     },
+    {
+        "name": "navigate_to_page",
+        "description": "الانتقال إلى صفحة معينة في النظام",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "type": "string",
+                    "description": "اسم الصفحة: overview, applications, jobs, employees, compliance, resume-analysis, criteria, audit, system, agent",
+                    "enum": ["overview", "applications", "jobs", "employees", "compliance", "resume-analysis", "criteria", "audit", "system", "agent"]
+                }
+            },
+            "required": ["page"]
+        },
+        "needs_confirmation": False,
+    },
+    {
+        "name": "search_employees",
+        "description": "البحث عن موظف بالاسم أو أي حقل",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "نص البحث"},
+            },
+            "required": ["query"]
+        },
+        "needs_confirmation": False,
+    },
+    {
+        "name": "get_attendance_summary",
+        "description": "ملخص الحضور والغياب لليوم أو تاريخ محدد",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "التاريخ YYYY-MM-DD (افتراضي اليوم)", "default": ""},
+            },
+        },
+        "needs_confirmation": False,
+    },
+    {
+        "name": "get_absent_employees",
+        "description": "عرض الموظفين المتغيبين عن العمل",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+        },
+        "needs_confirmation": False,
+    },
+    {
+        "name": "get_department_stats",
+        "description": "إحصائيات الموظفين حسب القسم/المسمى الوظيفي",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+        },
+        "needs_confirmation": False,
+    },
+    {
+        "name": "analyze_file",
+        "description": "تحليل ملف مرفوع (PDF, Word, Excel, صورة) واستخراج محتواه",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "file_text": {"type": "string", "description": "النص المستخرج من الملف"},
+                "file_name": {"type": "string", "description": "اسم الملف"},
+                "analysis_type": {"type": "string", "description": "نوع التحليل: summarize, extract_data, analyze_cv, general", "default": "general"},
+            },
+            "required": ["file_text", "file_name"]
+        },
+        "needs_confirmation": False,
+    },
+    {
+        "name": "get_compliance_summary",
+        "description": "ملخص شامل لحالة الامتثال (الإقامات، التأمينات، السعودة)",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+        },
+        "needs_confirmation": False,
+    },
+    {
+        "name": "export_report",
+        "description": "تصدير تقرير بصيغة Excel أو PDF",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "report_type": {"type": "string", "description": "نوع التقرير: employees, applications, compliance", "enum": ["employees", "applications", "compliance"]},
+            },
+            "required": ["report_type"]
+        },
+        "needs_confirmation": False,
+        "is_download": True,
+    },
+    {
+        "name": "get_recent_activity",
+        "description": "آخر النشاطات في النظام",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "عدد النتائج", "default": 10},
+            },
+        },
+        "needs_confirmation": False,
+    },
 ]
 
 
@@ -692,3 +796,152 @@ def _handle_get_iqama_alerts() -> dict:
         "expired_count": len(expired),
         "summary_ar": summary,
     }
+
+
+def _handle_navigate_to_page(page: str) -> dict:
+    page_map = {
+        "overview": {"name": "نظرة عامة", "view": "overview"},
+        "applications": {"name": "الطلبات الواردة", "view": "applications"},
+        "jobs": {"name": "المسميات الوظيفية", "view": "jobs"},
+        "employees": {"name": "الموظفون", "view": "employees"},
+        "compliance": {"name": "الامتثال", "view": "compliance"},
+        "resume-analysis": {"name": "تحليل السيرة الذاتية", "view": "resume-analysis"},
+        "criteria": {"name": "المجالات والمعايير", "view": "criteria"},
+        "audit": {"name": "سجل التدقيق", "view": "audit"},
+        "system": {"name": "النظام", "view": "system"},
+        "agent": {"name": "مركز القيادة الذكي", "view": "agent"},
+    }
+    info = page_map.get(page)
+    if not info:
+        return {"error": f"الصفحة {page} غير موجودة"}
+    return {
+        "navigate": True,
+        "view": info["view"],
+        "summary_ar": f"جارٍ الانتقال إلى صفحة {info['name']}..."
+    }
+
+
+def _handle_search_employees(query: str) -> dict:
+    items, total = list_employees(100, 0)
+    search_lower = query.lower()
+    results = [e for e in items if search_lower in (e.get("full_name", "") + " " + e.get("job_title", "") + " " + e.get("nationality", "")).lower()]
+    return {
+        "items": results[:20],
+        "total": len(results),
+        "query": query,
+        "summary_ar": f"تم العثور على {len(results)} نتيجة للبحث '{query}'" if results else f"لم يتم العثور على نتائج للبحث '{query}'"
+    }
+
+
+def _handle_get_attendance_summary(date: str = "") -> dict:
+    db = SessionLocal()
+    try:
+        total = db.query(Employee).count()
+    finally:
+        db.close()
+
+    return {
+        "total_employees": total,
+        "date": date or "اليوم",
+        "summary_ar": f"ملخص الحضور ليوم {date or 'اليوم'}:\n• إجمالي الموظفين: {total}\n• ملاحظة: نظام الحضور والغياب غير مفعّل حالياً. يمكن تفعيله لإظهار بيانات مفصلة."
+    }
+
+
+def _handle_get_absent_employees() -> dict:
+    return {
+        "items": [],
+        "total": 0,
+        "summary_ar": "نظام الحضور والغياب غير مفعّل حالياً. يمكن تفعيله لعرض الموظفين المتغيبين."
+    }
+
+
+def _handle_get_department_stats() -> dict:
+    db = SessionLocal()
+    try:
+        dept_rows = db.query(Employee.job_title, func.count(Employee.id)).group_by(Employee.job_title).all()
+        departments = {dept or "غير محدد": count for dept, count in dept_rows}
+        total = sum(departments.values())
+
+        sorted_depts = sorted(departments.items(), key=lambda x: x[1], reverse=True)
+
+        lines = [f"• {dept}: {count} موظف ({round(count/total*100, 1)}%)" for dept, count in sorted_depts[:15]]
+
+        return {
+            "departments": departments,
+            "total_employees": total,
+            "summary_ar": f"إحصائيات الموظفين حسب المسمى الوظيفي (إجمالي: {total}):\n" + "\n".join(lines)
+        }
+    finally:
+        db.close()
+
+
+def _handle_analyze_file(file_text: str, file_name: str, analysis_type: str = "general") -> dict:
+    from app.services.llm_client import generate_text
+
+    prompts = {
+        "summarize": f"لخّص محتوى الملف التالي بشكل موجز:\n\nالملف: {file_name}\n\nالمحتوى:\n{file_text[:8000]}",
+        "extract_data": f"استخرج البيانات الرئيسية من الملف التالي:\n\nالملف: {file_name}\n\nالمحتوى:\n{file_text[:8000]}",
+        "analyze_cv": f"حلّل السيرة الذاتية التالية واستخرج: الاسم، المؤهلات، الخبرات، المهارات، نقاط القوة:\n\n{file_text[:8000]}",
+        "general": f"حلّل محتوى الملف التالي وأعِد ملخصاً شاملاً:\n\nالملف: {file_name}\n\nالمحتوى:\n{file_text[:8000]}",
+    }
+
+    try:
+        result_text = generate_text(prompts.get(analysis_type, prompts["general"]), max_tokens=2000)
+        return {
+            "analysis": result_text,
+            "file_name": file_name,
+            "analysis_type": analysis_type,
+            "summary_ar": f"تم تحليل الملف '{file_name}' بنجاح:\n\n{result_text}"
+        }
+    except Exception as e:
+        return {"error": f"فشل تحليل الملف: {str(e)}"}
+
+
+def _handle_get_compliance_summary() -> dict:
+    employees = list_all_employees_raw()
+    iqama_alerts = check_iqama_expiry(employees)
+    saudization = calculate_saudization(employees)
+    saud_data = saudization.to_dict()
+
+    urgent_iqama = [a for a in iqama_alerts if a["level"] in ("urgent", "expired")]
+
+    lines = [
+        f"تقرير الامتثال الشامل:",
+        f"• نسبة السعودة: {saud_data['saudization_percent']}% ({saud_data['rough_band_ar']})",
+        f"• إقامات منتهية أو قريبة: {len(urgent_iqama)}",
+    ]
+
+    for a in urgent_iqama[:5]:
+        lines.append(f"  - {a['full_name']}: {a.get('level_label_ar', a['level'])} (تنتهي {a.get('iqama_expiry_date', '?')})")
+
+    return {
+        "saudization": saud_data,
+        "iqama_alerts_count": len(urgent_iqama),
+        "iqama_alerts": urgent_iqama[:10],
+        "summary_ar": "\n".join(lines)
+    }
+
+
+def _handle_export_report(report_type: str = "employees") -> dict:
+    if report_type == "employees":
+        content = generate_template_excel()
+        filename = "employees_report.xlsx"
+    elif report_type == "applications":
+        return _handle_export_applications_report()
+    else:
+        content = generate_template_excel()
+        filename = "compliance_report.xlsx"
+
+    import base64
+    return {
+        "is_download": True,
+        "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "filename": filename,
+        "data_base64": base64.b64encode(content).decode(),
+        "summary_ar": f"تم تجهيز تقرير {report_type} للتحميل",
+    }
+
+
+def _handle_get_recent_activity(limit: int = 10) -> dict:
+    items, total = list_logs(limit, 0)
+    return {"items": items, "total": total, "summary_ar": f"آخر {len(items)} نشاط في النظام من أصل {total}"}
