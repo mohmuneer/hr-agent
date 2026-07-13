@@ -82,6 +82,87 @@ def _call_openai(settings, prompt: str, max_tokens: int) -> str:
     return content
 
 
+def generate_text_stream(prompt: str, max_tokens: int = 2000):
+    """Generator that yields text chunks as they arrive from the LLM provider."""
+    settings = get_settings()
+    if not settings.is_configured:
+        raise LLMError(
+            f"لم يتم ضبط مفتاح API لمزوّد النموذج الحالي ({settings.PROVIDER}). راجع ملف .env"
+        )
+
+    if settings.PROVIDER == "openai":
+        yield from _stream_openai(settings, prompt, max_tokens)
+    elif settings.PROVIDER == "anthropic":
+        yield from _stream_anthropic(settings, prompt, max_tokens)
+    elif settings.PROVIDER == "gemini":
+        yield from _stream_gemini(settings, prompt, max_tokens)
+    else:
+        # Fallback to non-streaming
+        yield generate_text(prompt, max_tokens)
+
+
+def _stream_anthropic(settings, prompt: str, max_tokens: int):
+    if not settings.ANTHROPIC_API_KEY:
+        raise LLMError("مفتاح ANTHROPIC_API_KEY غير مضبوط.")
+
+    client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+    try:
+        with client.messages.stream(
+            model=settings.MODEL,
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        ) as stream:
+            for text in stream.text_stream:
+                yield text
+    except anthropic.APIStatusError as e:
+        message = e.body.get("error", {}).get("message", str(e)) if isinstance(e.body, dict) else str(e)
+        raise LLMError(f"تعذّر الاتصال بنموذج الذكاء الاصطناعي (Anthropic): {message}")
+    except anthropic.APIError as e:
+        raise LLMError(f"تعذّر الاتصال بنموذج الذكاء الاصطناعي (Anthropic): {e}")
+
+
+def _stream_gemini(settings, prompt: str, max_tokens: int):
+    if not settings.GEMINI_API_KEY:
+        raise LLMError("مفتاح GEMINI_API_KEY غير مضبوط.")
+
+    client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    try:
+        response = client.models.generate_content_stream(
+            model=settings.GEMINI_MODEL,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                max_output_tokens=max_tokens,
+            ),
+        )
+        for chunk in response:
+            if chunk.text:
+                yield chunk.text
+    except genai_errors.APIError as e:
+        raise LLMError(f"تعذّر الاتصال بنموذج الذكاء الاصطناعي (Gemini): {e.message}")
+
+
+def _stream_openai(settings, prompt: str, max_tokens: int):
+    if not settings.OPENAI_API_KEY:
+        raise LLMError("مفتاح OPENAI_API_KEY غير مضبوط.")
+
+    client = OpenAI(
+        api_key=settings.OPENAI_API_KEY,
+        base_url=settings.OPENAI_BASE_URL,
+    )
+    try:
+        stream = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+            stream=True,
+        )
+        for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+    except Exception as e:
+        raise LLMError(f"تعذّر الاتصال بنموذج الذكاء الاصطناعي (OpenAI): {e}")
+
+
 def generate_text(prompt: str, max_tokens: int = 2000) -> str:
     settings = get_settings()
     if not settings.is_configured:

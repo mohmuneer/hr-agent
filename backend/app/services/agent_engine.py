@@ -8,7 +8,7 @@ import json
 import uuid
 from datetime import datetime, timezone
 
-from app.services.llm_client import generate_text, LLMError
+from app.services.llm_client import generate_text, generate_text_stream, LLMError
 from app.services.agent_tools import TOOL_DEFINITIONS, execute_tool
 from app.services.json_utils import extract_json, JsonExtractionError
 from app.schemas.agent import AgentChatResponse, ToolAction
@@ -291,3 +291,119 @@ def clear_conversation(conv_id: str) -> bool:
         del CONVERSATIONS[conv_id]
         return True
     return False
+
+
+def process_message_stream(message: str, conv_id: str | None = None, current_page: str | None = None, voice_mode: bool = False):
+    """Streaming version of process_message. Yields SSE-compatible event dicts."""
+    conv_id, history = _get_or_create_conv(conv_id)
+
+    user_msg = message
+    if current_page:
+        user_msg += f"\n[الصفحة الحالية: {current_page}]"
+    if voice_mode:
+        user_msg += "\n[الطلب جاء من وضع الصوت]"
+
+    history.append({"role": "user", "content": user_msg, "timestamp": datetime.now(timezone.utc).isoformat()})
+
+    system = SYSTEM_PROMPT.format(tools_block=_format_tools_for_prompt())
+
+    # Yield conversation_id first
+    yield {"event": "meta", "data": {"conversation_id": conv_id}}
+
+    # Stream the LLM response
+    full_response = ""
+    try:
+        for chunk in generate_text_stream(
+            _build_prompt(system, history[-10:]),
+            max_tokens=2000,
+        ):
+            full_response += chunk
+            yield {"event": "chunk", "data": {"text": chunk}}
+    except LLMError as e:
+        error_msg = str(e)
+        history.append({"role": "assistant", "content": f"خطأ: {error_msg}", "timestamp": datetime.now(timezone.utc).isoformat()})
+        yield {"event": "error", "data": {"message_ar": error_msg}}
+        return
+
+    # Signal end of stream
+    yield {"event": "stream_end", "data": {}}
+
+    # Parse the complete response for tool calls, navigation, etc.
+    try:
+        parsed = extract_json(full_response)
+    except JsonExtractionError:
+        text = full_response.strip()
+        history.append({"role": "assistant", "content": text, "timestamp": datetime.now(timezone.utc).isoformat()})
+        yield {"event": "done", "data": {"type": "text_response", "message_ar": text, "conversation_id": conv_id}}
+        return
+
+    resp_type = parsed.get("type", "text_response")
+
+    if resp_type == "text_response":
+        text = parsed.get("message_ar", "")
+        suggestions = parsed.get("suggestions")
+        history.append({"role": "assistant", "content": text, "timestamp": datetime.now(timezone.utc).isoformat()})
+        yield {"event": "done", "data": {"type": "text_response", "message_ar": text, "conversation_id": conv_id, "suggestions": suggestions}}
+
+    elif resp_type == "error":
+        text = parsed.get("message_ar", "حدث خطأ")
+        history.append({"role": "assistant", "content": text, "timestamp": datetime.now(timezone.utc).isoformat()})
+        yield {"event": "done", "data": {"type": "error", "message_ar": text, "conversation_id": conv_id}}
+
+    elif resp_type == "tool_call":
+        action_data = parsed.get("action", {})
+        tool_name = action_data.get("tool", "")
+        params = action_data.get("parameters", {})
+        explanation = action_data.get("explanation_ar", "")
+        needs_confirmation = action_data.get("needs_confirmation", True)
+        suggestions = parsed.get("suggestions")
+
+        if not tool_name:
+            yield {"event": "done", "data": {"type": "error", "message_ar": "لم يتم تحديد أداة", "conversation_id": conv_id}}
+            return
+
+        history.append({
+            "role": "assistant",
+            "content": f"[طلب تنفيذ: {tool_name}] {explanation}",
+            "action": {"tool": tool_name, "parameters": params},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+
+        yield {"event": "done", "data": {
+            "type": "tool_call",
+            "message_ar": explanation,
+            "action": {"tool": tool_name, "parameters": params, "explanation_ar": explanation, "needs_confirmation": needs_confirmation},
+            "conversation_id": conv_id,
+            "suggestions": suggestions,
+        }}
+
+    elif resp_type == "navigate":
+        navigate_to = parsed.get("navigate_to", "")
+        text = parsed.get("message_ar", f"جارٍ الانتقال إلى {navigate_to}...")
+        suggestions = parsed.get("suggestions")
+        history.append({"role": "assistant", "content": text, "timestamp": datetime.now(timezone.utc).isoformat()})
+        yield {"event": "done", "data": {
+            "type": "navigate",
+            "message_ar": text,
+            "navigate_to": navigate_to,
+            "conversation_id": conv_id,
+            "suggestions": suggestions,
+        }}
+
+    else:
+        yield {"event": "done", "data": {"type": "error", "message_ar": "استجابة غير مفهومة", "conversation_id": conv_id}}
+
+
+def _build_prompt(system: str, messages: list[dict]) -> str:
+    """Build the full prompt string from system prompt and conversation history."""
+    conv_text = ""
+    for m in messages:
+        role = "المستخدم" if m["role"] == "user" else "المساعد"
+        conv_text += f"{role}: {m['content']}\n\n"
+
+    return f"""{system}
+
+تاريخ المحادثة:
+{conv_text}
+
+أعد ردك بصيغة JSON فقط كما هو موصوف أعلاه. لا تضف أي نص خارج JSON."""

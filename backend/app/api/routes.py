@@ -6,6 +6,7 @@ from datetime import datetime
 from io import BytesIO
 
 from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 
 from app.core.config import get_settings
@@ -119,7 +120,12 @@ from app.services.recommendation import RecommendationError, generate_final_reco
 from app.services.voice_interview import VoiceEvaluationError, evaluate_voice_interview
 from app.services.written_test import WrittenTestError, score_written_test
 from app.schemas.agent import AgentChatRequest, AgentChatResponse, AgentConfirmRequest
-from app.services.agent_engine import process_message, confirm_and_execute, clear_conversation
+from app.services.agent_engine import (
+    clear_conversation,
+    confirm_and_execute,
+    process_message,
+    process_message_stream,
+)
 
 router = APIRouter(prefix="/api/v1")
 
@@ -1230,3 +1236,39 @@ def agent_clear_conv(conv_id: str, _admin: None = Depends(require_admin)) -> dic
     """مسح محادثة وكيل الذكاء الاصطناعي."""
     ok = clear_conversation(conv_id)
     return {"ok": ok}
+
+
+@router.post("/agent/chat-stream")
+def agent_chat_stream(req: AgentChatRequest, _admin: None = Depends(require_admin)):
+    """إرسال رسالة إلى الوكيل مع رد متدفق (SSE) للاستجابة الفورية."""
+    conv_id = req.conversation_id if req.conversation_id and req.conversation_id != "null" else None
+
+    def event_generator():
+        import json as _json
+        try:
+            for event in process_message_stream(
+                req.message, conv_id,
+                current_page=req.current_page,
+                voice_mode=req.voice_mode,
+            ):
+                event_name = event.get("event", "message")
+                data = _json.dumps(event.get("data", {}), ensure_ascii=False)
+                yield f"event: {event_name}\ndata: {data}\n\n"
+        except Exception as e:
+            error_data = _json.dumps({"message_ar": str(e)}, ensure_ascii=False)
+            yield f"event: error\ndata: {error_data}\n\n"
+        yield "event: close\ndata: {}\n\n"
+
+    log_action("agent_chat_stream", "agent",
+               details={"message_preview": req.message[:80], "page": req.current_page, "voice": req.voice_mode},
+               username="admin")
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

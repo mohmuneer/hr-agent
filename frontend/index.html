@@ -3835,16 +3835,22 @@ document.getElementById("close-detail-btn").addEventListener("click", () => {
 loadOverview();
 
 // ═══════════════════════════════════════════════════════
-// AI Command Center — Full Voice-Enabled Agent Engine
+// AI Command Center — Real-Time Voice Agent Engine
 // ═══════════════════════════════════════════════════════
 
 let agentConvId = null;
 let agentPendingAction = null;
 let agentVoiceEnabled = true;
-let agentConversationMode = false;
+let agentVoiceMode = false;  // Master voice mode toggle
 let agentCurrentPage = "agent";
 let agentTtsText = "";
 let agentLastSuggestions = [];
+let agentMessageIdCounter = 0;
+let agentCurrentAbortController = null;
+let agentStreamingText = "";  // Accumulates streamed text for current response
+let agentTtsBuffer = "";      // Buffer for streaming TTS chunks
+let agentTtsFlushTimer = null;
+let agentSpeakingFromStream = false;
 
 const agentChat = document.getElementById("agent-chat");
 const agentInput = document.getElementById("agent-input");
@@ -3863,7 +3869,7 @@ const ttsPitchVal = document.getElementById("tts-pitch-val");
 const suggestionsEl = document.getElementById("agent-suggestions");
 
 // ─── State Machine ───
-const AgentState = { IDLE: "idle", LISTENING: "listening", THINKING: "thinking", SPEAKING: "speaking", RECORDING: "recording" };
+const AgentState = { IDLE: "idle", LISTENING: "listening", THINKING: "thinking", SPEAKING: "speaking" };
 let agentState = AgentState.IDLE;
 
 function setAgentState(state, text) {
@@ -3874,18 +3880,32 @@ function setAgentState(state, text) {
     [AgentState.LISTENING]: "أستمع إليك...",
     [AgentState.THINKING]: "أفكر...",
     [AgentState.SPEAKING]: "أتحدث...",
-    [AgentState.RECORDING]: "جارٍ التسجيل..."
   }[state] || "";
 }
 
-// ─── Speech Recognition (STT) ───
+// ─── Deduplication ───
+const recentMessages = new Map(); // hash -> timestamp
+function isDuplicate(text) {
+  const hash = text.trim().toLowerCase().substring(0, 100);
+  const now = Date.now();
+  // Clean old entries
+  for (const [k, t] of recentMessages) {
+    if (now - t > 3000) recentMessages.delete(k);
+  }
+  if (recentMessages.has(hash)) return true;
+  recentMessages.set(hash, now);
+  return false;
+}
+
+// ─── Speech Recognition (STT) — Single instance, continuous ───
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
 let recognitionRestartTimer = null;
+let recognitionRestartCount = 0;
 
 if (SpeechRecognition) {
   recognition = new SpeechRecognition();
-  recognition.continuous = false;
+  recognition.continuous = true;   // KEY: never stop
   recognition.interimResults = true;
   recognition.lang = "ar-SA";
   recognition.maxAlternatives = 1;
@@ -3910,24 +3930,33 @@ if (SpeechRecognition) {
 
     if (finalTranscript) {
       agentInput.value = finalTranscript;
+      // Interrupt: if currently speaking, stop TTS immediately
+      if (agentState === AgentState.SPEAKING) {
+        stopSpeaking();
+      }
       handleVoiceInput(finalTranscript);
     }
   };
 
   recognition.onerror = (event) => {
-    if (event.error === "no-speech" || event.error === "aborted") {
-      if (agentConversationMode && agentState !== AgentState.SPEAKING) {
-        restartRecognition(500);
+    recognitionRestartCount++;
+    if (event.error === "no-speech" || event.error === "aborted" || event.error === "audio-capture") {
+      // Auto-restart if in voice mode
+      if (agentVoiceMode) {
+        restartRecognition(200);
       }
       return;
     }
     console.warn("STT error:", event.error);
-    setAgentState(AgentState.IDLE);
+    if (agentVoiceMode) {
+      restartRecognition(500);
+    }
   };
 
   recognition.onend = () => {
-    if (agentConversationMode && agentState !== AgentState.SPEAKING && agentState !== AgentState.THINKING) {
-      restartRecognition(300);
+    // ALWAYS restart if in voice mode — this is the key to continuous listening
+    if (agentVoiceMode) {
+      restartRecognition(100);
     } else if (agentState === AgentState.LISTENING) {
       setAgentState(AgentState.IDLE);
     }
@@ -3937,67 +3966,65 @@ if (SpeechRecognition) {
 function restartRecognition(delay) {
   clearTimeout(recognitionRestartTimer);
   recognitionRestartTimer = setTimeout(() => {
-    if (recognition && agentConversationMode && agentState !== AgentState.SPEAKING && agentState !== AgentState.THINKING) {
+    if (recognition && agentVoiceMode) {
       try {
         recognition.start();
-        setAgentState(AgentState.LISTENING);
-      } catch (e) {}
+      } catch (e) {
+        // Already started, ignore
+      }
     }
   }, delay);
 }
 
-function startListening() {
+function startVoiceMode() {
   if (!recognition) {
     addAgentMessage("assistant", "❌ المتصفح لا يدعم التعرف على الصوت. استخدم Chrome أو Edge.");
     return;
   }
-  stopSpeaking();
+  agentVoiceMode = true;
+  micBtn.classList.add("listening");
+  setAgentState(AgentState.LISTENING, "أستمع إليك...");
+  startVoiceVisualization();
+  agentInput.placeholder = "أستمع إليك... اضغط على الميكروفون للإيقاف";
+
   try {
-    recognition.lang = detectLanguage(agentInput.value) === "ar" ? "ar-SA" : "en-US";
     recognition.start();
-    setAgentState(AgentState.RECORDING);
-    startVoiceVisualization();
-    agentInput.value = "";
-    agentInput.placeholder = "أستمع إليك...";
   } catch (e) {
-    console.warn("STT start error:", e);
+    // Already started
   }
 }
 
-function stopListening() {
-  if (recognition) {
-    try { recognition.stop(); } catch (e) {}
-  }
+function stopVoiceMode() {
+  agentVoiceMode = false;
+  micBtn.classList.remove("listening");
+  try { recognition.stop(); } catch (e) {}
+  clearTimeout(recognitionRestartTimer);
   stopVoiceVisualization();
   agentInput.placeholder = "اكتب أمرك بالعربية أو الإنجليزية...";
-  if (agentState === AgentState.RECORDING) setAgentState(AgentState.IDLE);
+  if (agentState !== AgentState.THINKING && agentState !== AgentState.SPEAKING) {
+    setAgentState(AgentState.IDLE);
+  }
 }
 
 function handleVoiceInput(text) {
-  stopListening();
-  stopVoiceVisualization();
-
   // Wake Word Check
   const wakeWords = ["مرحبا مساعد", "يا مساعد", "hey assistant", "hello assistant", "مساعد"];
   const isWakeWord = wakeWords.some(w => text.toLowerCase().startsWith(w));
   if (isWakeWord) {
     const cleaned = text.replace(/^(مرحبا مساعد|يا مساعد|hey assistant|hello assistant|مساعد)\s*/i, "").trim();
     if (cleaned) {
-      sendAgentMessage(cleaned);
+      sendAgentMessageStreaming(cleaned);
     } else {
       addAgentMessage("assistant", "نعم؟ أنا هنا. كيف يمكنني مساعدتك؟");
-      if (agentConversationMode) restartRecognition(500);
     }
     return;
   }
 
-  sendAgentMessage(text);
+  sendAgentMessageStreaming(text);
 }
 
 // ─── Voice Visualization ───
 let vizAnimFrame = null;
-let vizAnalyser = null;
-let vizAudioCtx = null;
 
 function startVoiceVisualization() {
   voiceViz.classList.add("active");
@@ -4012,7 +4039,7 @@ function stopVoiceVisualization() {
 
 function animateViz() {
   if (!voiceViz.classList.contains("active")) return;
-  voiceVizBars.forEach((bar, i) => {
+  voiceVizBars.forEach((bar) => {
     const h = agentState === AgentState.SPEAKING
       ? 8 + Math.random() * 30
       : 4 + Math.random() * 20;
@@ -4056,17 +4083,85 @@ function speak(text) {
     voiceViz.classList.remove("speaking");
     stopVoiceVisualization();
     ttsControls.classList.remove("active");
-    setAgentState(AgentState.IDLE);
-    if (agentConversationMode) restartRecognition(400);
+    if (agentVoiceMode) {
+      setAgentState(AgentState.LISTENING, "أستمع إليك...");
+    } else {
+      setAgentState(AgentState.IDLE);
+    }
   };
   currentUtterance.onerror = () => {
     voiceViz.classList.remove("speaking");
     stopVoiceVisualization();
     ttsControls.classList.remove("active");
-    setAgentState(AgentState.IDLE);
+    if (agentVoiceMode) {
+      setAgentState(AgentState.LISTENING, "أستمع إليك...");
+    } else {
+      setAgentState(AgentState.IDLE);
+    }
   };
 
   speechSynthesis.speak(currentUtterance);
+}
+
+function speakStreaming(text) {
+  if (!agentVoiceEnabled || !window.speechSynthesis) return;
+  if (!text || !text.trim()) return;
+
+  // If already speaking, cancel and restart with full accumulated text
+  if (speechSynthesis.speaking) {
+    speechSynthesis.cancel();
+  }
+
+  agentTtsText = text;
+  const cleanText = text.replace(/[*#`>\[\]{}|_]/g, "").replace(/\n+/g, ". ").trim();
+  if (!cleanText) return;
+
+  const utterance = new SpeechSynthesisUtterance(cleanText);
+  utterance.lang = detectLanguage(cleanText) === "ar" ? "ar-SA" : "en-US";
+  utterance.rate = parseFloat(ttsSpeed.value) || 1;
+  utterance.pitch = parseFloat(ttsPitch.value) || 1;
+
+  const voices = speechSynthesis.getVoices();
+  const lang = detectLanguage(cleanText);
+  const preferred = lang === "ar"
+    ? voices.find(v => v.lang.startsWith("ar") && v.name.includes("Female"))
+      || voices.find(v => v.lang.startsWith("ar"))
+    : voices.find(v => v.lang.startsWith("en") && v.name.includes("Google"))
+      || voices.find(v => v.lang.startsWith("en"));
+  if (preferred) utterance.voice = preferred;
+
+  utterance.onstart = () => {
+    setAgentState(AgentState.SPEAKING, "أتحدث...");
+    ttsControls.classList.add("active");
+    startVoiceVisualization();
+    voiceViz.classList.add("speaking");
+    agentSpeakingFromStream = true;
+  };
+  utterance.onend = () => {
+    voiceViz.classList.remove("speaking");
+    stopVoiceVisualization();
+    ttsControls.classList.remove("active");
+    agentSpeakingFromStream = false;
+    if (agentVoiceMode) {
+      setAgentState(AgentState.LISTENING, "أستمع إليك...");
+    } else {
+      setAgentState(AgentState.IDLE);
+    }
+  };
+  utterance.onerror = () => {
+    voiceViz.classList.remove("speaking");
+    stopVoiceVisualization();
+    ttsControls.classList.remove("active");
+    agentSpeakingFromStream = false;
+    if (agentVoiceMode) {
+      setAgentState(AgentState.LISTENING, "أستمع إليك...");
+    } else {
+      setAgentState(AgentState.IDLE);
+    }
+  };
+
+  currentUtterance = utterance;
+  speechSynthesis.speak(utterance);
 }
 
 function stopSpeaking() {
@@ -4075,6 +4170,7 @@ function stopSpeaking() {
   voiceViz.classList.remove("speaking");
   stopVoiceVisualization();
   ttsControls.classList.remove("active");
+  agentSpeakingFromStream = false;
 }
 
 function replaySpeaking() {
@@ -4109,6 +4205,35 @@ function addAgentMessage(role, content, extra) {
     agentChat.appendChild(extraDiv);
   }
   agentChat.scrollTop = agentChat.scrollHeight;
+}
+
+function createStreamingMessage() {
+  removeWelcome();
+  const div = document.createElement("div");
+  div.className = "agent-msg assistant";
+  div.id = "agent-streaming-msg";
+  div.innerHTML = `
+    <div class="avatar">🤖</div>
+    <div class="bubble"><span class="streaming-text"></span><span class="msg-time"></span></div>
+  `;
+  agentChat.appendChild(div);
+  agentChat.scrollTop = agentChat.scrollHeight;
+  return div;
+}
+
+function updateStreamingMessage(text) {
+  const el = document.getElementById("agent-streaming-msg");
+  if (!el) return;
+  const textEl = el.querySelector(".streaming-text");
+  const timeEl = el.querySelector(".msg-time");
+  if (textEl) textEl.textContent = text;
+  if (timeEl) timeEl.textContent = new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" });
+  agentChat.scrollTop = agentChat.scrollHeight;
+}
+
+function finalizeStreamingMessage() {
+  const el = document.getElementById("agent-streaming-msg");
+  if (el) el.removeAttribute("id");
 }
 
 function addTypingIndicator() {
@@ -4307,12 +4432,17 @@ function updatePageContext() {
   pageContext.textContent = "📍 " + (pageNames[agentCurrentPage] || "");
 }
 
-// ─── Core: Send Message ───
-async function sendAgentMessage(text) {
+// ─── Core: Streaming Message via SSE ───
+async function sendAgentMessageStreaming(text) {
   text = text || agentInput.value.trim();
   if (!text) return;
-  if (agentSendBtn.disabled) return;
-  agentSendBtn.disabled = true;
+  if (isDuplicate(text)) return;
+
+  // Abort any previous streaming request
+  if (agentCurrentAbortController) {
+    agentCurrentAbortController.abort();
+  }
+  agentCurrentAbortController = new AbortController();
 
   removeWelcome();
   addAgentMessage("user", text.replace(/\n/g, "<br>"));
@@ -4322,54 +4452,139 @@ async function sendAgentMessage(text) {
   setAgentState(AgentState.THINKING);
   addTypingIndicator();
 
+  agentStreamingText = "";
+  agentTtsBuffer = "";
+  let streamDone = false;
+  let finalData = null;
+
   try {
-    const res = await apiFetch(`${API_BASE}/agent/chat`, {
+    const res = await fetch(`${API_BASE}/agent/chat-stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message: text,
         conversation_id: agentConvId,
         current_page: agentCurrentPage,
-        voice_mode: agentState === AgentState.RECORDING || agentState === AgentState.LISTENING
+        voice_mode: agentVoiceMode,
       }),
+      signal: agentCurrentAbortController.signal,
     });
-    const data = await res.json();
-    removeTypingIndicator();
-    agentConvId = data.conversation_id;
 
-    if (data.type === "text_response") {
-      addAgentMessage("assistant", data.message_ar);
-      renderSuggestions(data.suggestions);
-      if (agentVoiceEnabled) speak(data.message_ar);
-    } else if (data.type === "navigate") {
-      addAgentMessage("assistant", data.message_ar);
-      renderNavigate(data.navigate_to);
-      renderSuggestions(data.suggestions);
-      if (agentVoiceEnabled) speak(data.message_ar);
-    } else if (data.type === "tool_call") {
-      addAgentMessage("assistant", data.message_ar);
-      if (data.action && data.action.needs_confirmation) {
-        agentPendingAction = data.action;
-        renderConfirmation(data.action);
-        if (agentVoiceEnabled) speak(data.message_ar);
-      } else {
-        agentPendingAction = data.action;
-        await window.executeAgentAction();
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      let currentEvent = "";
+      for (const line of lines) {
+        if (line.startsWith("event: ")) {
+          currentEvent = line.substring(7).trim();
+        } else if (line.startsWith("data: ")) {
+          const dataStr = line.substring(6);
+          try {
+            const data = JSON.parse(dataStr);
+
+            if (currentEvent === "meta") {
+              agentConvId = data.conversation_id;
+            } else if (currentEvent === "chunk") {
+              // Streaming text chunk arrived
+              if (!streamDone) {
+                removeTypingIndicator();
+                if (!document.getElementById("agent-streaming-msg")) {
+                  createStreamingMessage();
+                }
+              }
+              agentStreamingText += data.text || "";
+              updateStreamingMessage(agentStreamingText);
+
+              // Streaming TTS: accumulate and flush periodically
+              agentTtsBuffer += data.text || "";
+              const sentences = agentTtsBuffer.split(/([.؟!،\n])/);
+              if (sentences.length > 2) {
+                const toSpeak = sentences.slice(0, -1).join("");
+                agentTtsBuffer = sentences[sentences.length - 1] || "";
+                if (agentVoiceEnabled && toSpeak.trim()) {
+                  speakStreaming(agentStreamingText);
+                }
+              }
+            } else if (currentEvent === "stream_end") {
+              streamDone = true;
+              // Flush remaining TTS buffer
+              if (agentVoiceEnabled && agentStreamingText.trim()) {
+                speakStreaming(agentStreamingText);
+              }
+            } else if (currentEvent === "done") {
+              finalData = data;
+            } else if (currentEvent === "error") {
+              removeTypingIndicator();
+              finalizeStreamingMessage();
+              addAgentMessage("assistant", "❌ " + data.message_ar);
+              renderSuggestions(["إعادة المحاولة", "عرض الموظفين"]);
+              if (agentVoiceEnabled) speak(data.message_ar);
+              agentCurrentAbortController = null;
+              return;
+            }
+          } catch (parseErr) {
+            // Ignore non-JSON lines
+          }
+        }
       }
-    } else if (data.type === "error") {
-      addAgentMessage("assistant", "❌ " + data.message_ar);
-      renderSuggestions(data.suggestions || ["عرض الموظفين", "إحصائيات النظام", "مسح المحادثة"]);
-      if (agentVoiceEnabled) speak(data.message_ar);
+    }
+
+    removeTypingIndicator();
+    finalizeStreamingMessage();
+
+    if (finalData) {
+      agentConvId = finalData.conversation_id;
+
+      if (finalData.type === "text_response") {
+        renderSuggestions(finalData.suggestions);
+        if (!agentSpeakingFromStream && agentVoiceEnabled) speak(finalData.message_ar);
+      } else if (finalData.type === "navigate") {
+        renderNavigate(finalData.navigate_to);
+        renderSuggestions(finalData.suggestions);
+        if (!agentSpeakingFromStream && agentVoiceEnabled) speak(finalData.message_ar);
+      } else if (finalData.type === "tool_call") {
+        if (finalData.action && finalData.action.needs_confirmation) {
+          agentPendingAction = finalData.action;
+          renderConfirmation(finalData.action);
+        } else {
+          agentPendingAction = finalData.action;
+          await window.executeAgentAction();
+        }
+      } else if (finalData.type === "error") {
+        addAgentMessage("assistant", "❌ " + finalData.message_ar);
+        renderSuggestions(finalData.suggestions || ["عرض الموظفين", "إحصائيات النظام"]);
+      }
     }
   } catch (e) {
+    if (e.name === "AbortError") {
+      // Request was cancelled (new message sent)
+      removeTypingIndicator();
+      finalizeStreamingMessage();
+      return;
+    }
     removeTypingIndicator();
+    finalizeStreamingMessage();
     addAgentMessage("assistant", "❌ خطأ في الاتصال: " + e.message);
     renderSuggestions(["إعادة المحاولة", "عرض الموظفين"]);
   }
 
-  agentSendBtn.disabled = false;
-  setAgentState(AgentState.IDLE);
+  agentCurrentAbortController = null;
+  setAgentState(agentVoiceMode ? AgentState.LISTENING : AgentState.IDLE);
 }
+
+// Keep old name for compatibility
+const sendAgentMessage = sendAgentMessageStreaming;
 
 window.executeAgentAction = async function() {
   if (!agentPendingAction) return;
@@ -4407,7 +4622,7 @@ window.executeAgentAction = async function() {
     removeTypingIndicator();
     addAgentMessage("assistant", "❌ خطأ في التنفيذ: " + e.message);
   }
-  setAgentState(AgentState.IDLE);
+  setAgentState(agentVoiceMode ? AgentState.LISTENING : AgentState.IDLE);
 };
 
 window.cancelAgentAction = async function() {
@@ -4436,42 +4651,27 @@ window.downloadAgentFile = function(base64, filename, mimeType) {
 };
 
 // ─── Event Listeners ───
-agentSendBtn.addEventListener("click", () => sendAgentMessage());
+
+// Send button (text mode)
+agentSendBtn.addEventListener("click", () => sendAgentMessageStreaming());
 agentInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendAgentMessage(); }
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendAgentMessageStreaming(); }
 });
 agentInput.addEventListener("input", () => {
   agentInput.style.height = "auto";
   agentInput.style.height = Math.min(agentInput.scrollHeight, 120) + "px";
 });
 
-// Microphone Button
+// Microphone Button — Single click toggles voice mode ON/OFF
 micBtn.addEventListener("click", () => {
-  if (agentState === AgentState.RECORDING || agentState === AgentState.LISTENING) {
-    stopListening();
-    const text = agentInput.value.trim();
-    if (text) sendAgentMessage(text);
-  } else if (agentState === AgentState.SPEAKING) {
-    stopSpeaking();
-    startListening();
+  if (agentVoiceMode) {
+    stopVoiceMode();
   } else {
-    startListening();
+    startVoiceMode();
   }
 });
 
-// Toggle conversation mode on double-click
-micBtn.addEventListener("dblclick", () => {
-  agentConversationMode = !agentConversationMode;
-  if (agentConversationMode) {
-    addAgentMessage("assistant", "🔄 وضع المحادثة المستمر مفعّل. سأستمع باستمرار. اضغط على الميكروفون مرة أخرى لإيقافه.");
-    startListening();
-  } else {
-    addAgentMessage("assistant", "⏹️ تم إيقاف وضع المحادثة المستمر.");
-    stopListening();
-  }
-});
-
-// Voice toggle
+// Voice toggle (mute/unmute TTS)
 document.getElementById("agent-voice-toggle").addEventListener("click", () => {
   agentVoiceEnabled = !agentVoiceEnabled;
   document.getElementById("agent-voice-toggle").textContent = agentVoiceEnabled ? "🔊" : "🔇";
@@ -4504,7 +4704,7 @@ document.getElementById("agent-clear-btn").addEventListener("click", async () =>
     </div>
   `;
   suggestionsEl.innerHTML = "";
-  renderSuggestions(["عرض الموظفين", "إحصائيات النظام", "عرض الطلبات", "تحليل السيرة الذاتية", "rapport mensuel"]);
+  renderSuggestions(["عرض الموظفين", "إحصائيات النظام", "عرض الطلبات", "تحليل السيرة الذاتية"]);
 });
 
 // ─── File Upload ───
@@ -4562,26 +4762,7 @@ document.getElementById("file-analyze-btn").addEventListener("click", async () =
       fileText = extractData.text || extractData.detail || "لم يتم استخراج النص";
     }
 
-    const res = await apiFetch(`${API_BASE}/agent/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: `حلل الملف "${selectedFile.name}" و迎المحتوى التالي:\n\n${fileText.substring(0, 8000)}`,
-        conversation_id: agentConvId,
-        current_page: agentCurrentPage,
-      }),
-    });
-    const data = await res.json();
-    removeTypingIndicator();
-    agentConvId = data.conversation_id;
-
-    if (data.type === "text_response") {
-      addAgentMessage("assistant", data.message_ar);
-      renderSuggestions(data.suggestions);
-      if (agentVoiceEnabled) speak(data.message_ar);
-    } else {
-      addAgentMessage("assistant", data.message_ar || "تم تحليل الملف");
-    }
+    await sendAgentMessageStreaming(`حلل الملف "${selectedFile.name}"迎المحتوى التالي:\n\n${fileText.substring(0, 8000)}`);
   } catch (e) {
     removeTypingIndicator();
     addAgentMessage("assistant", "❌ خطأ في تحليل الملف: " + e.message);
@@ -4589,7 +4770,6 @@ document.getElementById("file-analyze-btn").addEventListener("click", async () =
 
   selectedFile = null;
   fileInput.value = "";
-  setAgentState(AgentState.IDLE);
 });
 
 // ─── Page Context Detection ───
@@ -4601,14 +4781,13 @@ function detectCurrentPage() {
   }
 }
 
-// Observe nav changes
 const navObserver = new MutationObserver(() => detectCurrentPage());
 document.querySelectorAll(".nav-item").forEach(n => {
   navObserver.observe(n, { attributes: true, attributeFilter: ["class"] });
 });
 
 // Initial suggestions
-renderSuggestions(["عرض الموظفين", "إحصائيات النظام", "عرض الطلبات", "rapport mensuel", "تحليل السيرة الذاتية"]);
+renderSuggestions(["عرض الموظفين", "إحصائيات النظام", "عرض الطلبات", "تحليل السيرة الذاتية"]);
 updatePageContext();
 
 // Load voices for TTS
